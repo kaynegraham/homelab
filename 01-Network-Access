@@ -1,0 +1,78 @@
+# 01: Network access to the lab
+
+## Goal
+Reach the Proxmox web UI and SSH from my laptop on the home network, with the lab sitting behind the FortiGate on its own subnet.
+
+## Layout
+
+| Device | Interface | IP |
+|---|---|---|
+| Laptop | Home LAN | 192.168.1.120 (static) |
+| FortiGate 60E | wan1 | 192.168.1.20 |
+| FortiGate 60E | internal | 10.10.99.1 |
+| Proxmox | vmbr0 | 10.10.99.2 |
+
+## What I set up
+
+### Firewall policy (wan1 to internal)
+
+| Field | Value |
+|---|---|
+| Name | Allow SSH from 192.168.1.120 |
+| Source | Laptop (192.168.1.120/32) |
+| Destination | Proxmox Hypervisor (10.10.99.2/32) |
+| Services | PROXMOXUI (TCP 8006), SSH |
+| Action | Accept |
+| NAT | Disabled |
+
+### Static route on the laptop
+
+The laptop needs to know the lab subnet lives behind the FortiGate, not the home router.
+
+```
+route -p add 10.10.99.0 mask 255.255.255.0 192.168.1.20
+```
+
+Check it with:
+
+```
+route print 10.10.*
+```
+
+## The problem
+
+The route and policy were in place, but the laptop got no response from Proxmox on 8006 or 22. The FortiGate could ping Proxmox fine, and Proxmox showed in the FortiGate ARP table.
+
+## Troubleshooting
+
+1. `route print` on the laptop: route present, gateway 192.168.1.20.
+2. `execute ping 10.10.99.2` on the FortiGate: replies.
+3. `get system arp` on the FortiGate: Proxmox MAC present.
+4. Turned NAT on for the policy as a test: the UI loaded straight away.
+
+## Cause
+
+The default gateway on Proxmox was wrong. Requests from the laptop reached Proxmox, but the replies went to the wrong gateway and never came back.
+
+The FortiGate ping worked because it comes from the same subnet, so Proxmox didn't need a gateway to reply. Enabling NAT hid the problem for the same reason: traffic arrived from the FortiGate's internal IP.
+
+## Fix
+
+1. Proxmox > node > System > Network > vmbr0: set Gateway to 10.10.99.1 and Apply Configuration.
+2. Turned NAT back off on the policy.
+3. Retested the web UI and SSH from the laptop: both working.
+
+## Lessons
+
+- A successful ping from the same subnet doesn't prove routing works.
+- If NAT on makes it work and NAT off breaks it, check the return path (the default gateway) first.
+- Useful FortiGate commands:
+
+```
+execute ping <ip>
+get system arp
+diagnose sniffer packet any 'host <ip> and port <port>' 4
+```
+
+## To do later
+- Add the 10.10.99.0/24 static route on the home router so every device at home can reach the lab, not just the laptop.

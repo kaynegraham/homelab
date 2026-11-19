@@ -1,6 +1,9 @@
 # 01: Network access to the lab
 
+[Back to README](../README.md) · Next: [02](02-tailscale-remote-access.md)
+
 ## Goal
+
 Reach the Proxmox web UI and SSH from my laptop on the home network, with the lab sitting behind the FortiGate on its own subnet.
 
 ## Layout
@@ -25,6 +28,10 @@ Reach the Proxmox web UI and SSH from my laptop on the home network, with the la
 | Action | Accept |
 | NAT | Disabled |
 
+![FortiGate laptop policy](images/01-fortigate-laptop-policy.png)
+
+This rule was later replaced by a whole home network rule (see [03](03-dc01.md)).
+
 ### Static route on the laptop
 
 The laptop needs to know the lab subnet lives behind the FortiGate, not the home router.
@@ -38,6 +45,8 @@ Check it with:
 ```
 route print 10.10.*
 ```
+
+![Laptop route table](images/01-laptop-route-print.png)
 
 ## The problem
 
@@ -74,5 +83,6 @@ get system arp
 diagnose sniffer packet any 'host <ip> and port <port>' 4
 ```
 
-## To do later
-- Add the 10.10.99.0/24 static route on the home router so every device at home can reach the lab, not just the laptop.
+## Follow-up
+
+- Added the 10.10.99.0/24 static route on the home router, so every device at home can reach the lab, not just the laptop. See [network](network.md).

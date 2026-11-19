@@ -49,12 +49,12 @@ Full details in [network.md](docs/network.md).
 
 ## To do
 
-- [ ] Order RAM (2x8GB DDR4-2133), see [hardware](docs/hardware.md)
-- [ ] Rerun Windows Update on DC01, then `dcdiag /q` once old errors age out
-- [ ] Add the 10.10.99.0/24 static route on the home router
-- [ ] Turn on logging for the FortiGate implicit deny rule
-- [ ] Remove the leftover `ts01` container (VM 100)
-- [ ] Approve the 10.10.99.0/24 subnet route in Tailscale
+- [x] Order RAM (2x8GB DDR4-2133), see [hardware](docs/hardware.md)
+- [ ] Rerun Windows Update on DC01 (running), then `dcdiag /q` once old errors age out
+- [x] Add the 10.10.99.0/24 static route on the home router
+- [x] Turn on logging for the FortiGate implicit deny rule
+- [x] Remove the leftover `ts01` container (VM 100)
+- [x] Approve the 10.10.99.0/24 subnet route in Tailscale
 
 ## Rules for this repo
 

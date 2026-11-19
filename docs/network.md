@@ -57,7 +57,7 @@ Replaced the original laptop-only rule from [01](01-network-access.md), which ha
 | Where | Route |
 |---|---|
 | Laptop | `10.10.99.0/24 via 192.168.1.20` (persistent) |
-| Home router | Same route, so all home devices can reach the lab (to do) |
+| Home router (TP-Link, LTE) | Same route on the LAN interface, so all home devices can reach the lab |
 
 ## DNS
 
@@ -65,6 +65,10 @@ Replaced the original laptop-only rule from [01](01-network-access.md), which ha
 |---|---|
 | DC01 | Itself, with 1.1.1.1 as a forwarder |
 | Lab machines | DC01 (10.10.99.11) |
+
+## Internet connection
+
+Home internet is LTE behind CGNAT. The router's WAN IP is in 100.64.0.0/10, so nothing on the internet can start a connection in and port forwarding won't work. Remote access has to dial out, which is why Tailscale is used.
 
 ## Remote access
 

@@ -1,4 +1,6 @@
 # KG Tech Lab
+<img width="2400" height="1350" alt="kg-tech-lab-diagram" src="https://github.com/user-attachments/assets/a9f5c378-236d-4af6-874b-7598cc9a01e4" />
+
 
 Home lab for learning Windows Server, Active Directory, Linux, Docker and networking. Built on a single Proxmox host behind a FortiGate 60E, with each step documented as I go.
 

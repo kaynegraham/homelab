@@ -127,7 +127,7 @@ This one is done for you, line by line, so you can see the pattern. Write the re
 ```yaml
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    image: louislam/uptime-kuma:2
     container_name: uptime-kuma
     restart: unless-stopped
     ports:
@@ -138,7 +138,7 @@ services:
 
 | Line | What it does | Why it matters |
 |---|---|---|
-| `image: louislam/uptime-kuma:1` | The image to run, pinned to major version 1 | `:latest` can jump to a new major version and break things on an update. Pinning makes updates deliberate. |
+| `image: louislam/uptime-kuma:2` | The image to run, pinned to major version 2 | `:latest` can jump to a new major version and break things on an update. Pinning makes updates deliberate. |
 | `container_name` | A fixed name instead of a random one | Easier to find in `docker ps` and logs |
 | `restart: unless-stopped` | Restarts the container if it crashes or the VM reboots, unless you stopped it yourself | Without it, services stay down after a reboot |
 | `ports: "3001:3001"` | Host port on the left, container port on the right | Containers are isolated by default. This opens one port from the VM into the container. |
@@ -147,6 +147,40 @@ services:
 **Check:** `docker compose up -d`, then browse to `http://10.10.99.20:3001`. Is it reachable from your laptop? If not, which device is blocking it, and what would you change?
 
 **Then:** add monitors for pve01, the FortiGate, DC01 and a few Built for Perth client sites. Set up a notification to your phone.
+
+### What I did ✅
+
+- Started on the `:1` tag, then moved to `:2` (current major version) before adding any monitors. Deleted `./data` and started fresh, since upgrading later means a database migration.
+- Picked **SQLite** at the v2 database setup: lowest RAM, and the whole database is one file in `./data`, so backups are just copying the folder.
+- Browser showed `Socket.io connect_error` after the upgrade because it had cached the v1 page. An incognito window fixed it.
+- Not reachable from the laptop at first: the FortiGate **Home to Lab** rule only allows listed services. Created a custom service for TCP 3001 and added it to the rule.
+
+| Monitor | Type | Notes |
+|---|---|---|
+| pve01 | HTTP(s) `https://10.10.99.2:8006` | "Ignore TLS/SSL errors" ticked, Proxmox uses a self-signed cert |
+| FortiGate | Ping `10.10.99.1` | Started as HTTP(s) and timed out. HTTPS admin access isn't enabled on `internal`, and shouldn't be. Ping is enough to prove it's alive. |
+| Built for Perth | HTTP(s) | Public site |
+
+DC01 not added yet, since it's shut down to save RAM. docker01 isn't monitored because Uptime Kuma runs on it: if docker01 goes down, so does the thing that would alert. Needs an outside check later.
+
+### Phone notifications (ntfy) ✅
+
+| Setting | Value | Why |
+|---|---|---|
+| Type | ntfy | Free, no account, has a phone app |
+| Server | https://ntfy.sh | Public server |
+| Topic | A long, hard-to-guess name | On the public server, anyone who knows the topic can read the alerts, so treat it like a password |
+| Priority | 3 normal, 5 for DOWN | Only outages show as urgent |
+| Phone call | Blank | Needs a paid ntfy account |
+| Applied to | All existing monitors | |
+
+Subscribed to the same topic in the ntfy app, sent a test, and got it on my phone.
+
+Gotcha: the topic field is the channel name, not the alert text. First attempt put a message in there.
+
+Later: self-host ntfy in the lab so alert topics aren't on a public server.
+
+Troubleshooting the FortiGate monitor: `ping -c 3 10.10.99.1` on docker01 and `docker exec uptime-kuma ping -c 3 10.10.99.1` both worked, which proved the FortiGate and the container were fine and the monitor itself was misconfigured.
 
 **Notes:**
 - What happens to your monitors if you delete the container but keep `./data`? Test it.
@@ -164,8 +198,42 @@ services:
 
 **Check:** you can log in and see the Uptime Kuma container listed.
 
-**Notes:**
-- Mounting the Docker socket into a container gives that container full control of the host. Why, and what does that mean for which images you trust?
+### What I did ✅
+
+```yaml
+services:
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - 9443:9443
+
+volumes:
+  portainer_data:
+    name: portainer_data
+```
+
+| Choice | Why |
+|---|---|
+| `:lts` tag | Long-term support track: stable releases only, not every new feature release |
+| Port 9443 | Portainer's HTTPS UI. Added TCP 9443 to the FortiGate Home to Lab rule. |
+| `portainer_data` named volume | Docker manages where it's stored, unlike Uptime Kuma's `./data` bind mount |
+| Docker socket mounted | How Portainer sees and controls containers (see below) |
+
+#### Configuration
+
+- Stacks created with `docker compose` show as **Limited** in Portainer: it can view them but not edit them. Decision: Git and the command line are the source of truth, Portainer is for logs, stats and the console only. Editing in Portainer would make the repo drift from what's running.
+- Session timeout set, and a config backup downloaded.
+
+### Why the Docker socket matters
+
+The Docker engine already runs as root. Mounting `docker.sock` into a container gives that container control of the engine, which means root on the host, so it can be easily exploited if the image is vulnerable or malicious. Only mount it into trusted images, keep them patched, never expose them to the internet, and review the host's security regularly.
+
+Same reason being in the `docker` group is effectively root: the group just grants access to the socket.
 
 ---
 
@@ -179,8 +247,83 @@ services:
 
 **Check:** a dashboard with working tiles for Proxmox, Portainer, Uptime Kuma and the FortiGate.
 
-**Notes:**
-- How do you check which ports are already in use on the VM?
+### What I did ✅
+
+| Choice | Value | Why |
+|---|---|---|
+| Image | `ghcr.io/homarr-labs/homarr` | TODO: record the pinned version tag |
+| Port | 7575 | Checked it was free with `ss -tulpn`. Added TCP 7575 to the FortiGate Home to Lab rule. |
+| Data | `./homarr/appdata` bind mount | Ignored by Git |
+| Encryption key | `.env` file, referenced as `${SECRET_ENCRYPTION_KEY}` | Secrets never go in a committed file |
+| Docker socket | TODO: record whether it was kept or removed, and why | |
+
+#### Secrets and Git
+
+The first version of the compose file had the encryption key pasted in, which would have gone straight to the public repo. Fixed by:
+
+1. Generating a new key with `openssl rand -hex 32`, since the old one had been in a screenshot.
+2. Putting it in `docker/homarr/.env`. Compose reads `.env` from the folder you run it in.
+3. Referencing it in the compose file as `${SECRET_ENCRYPTION_KEY}`.
+4. Adding `docker/.gitignore`:
+
+```
+**/.env
+**/data/
+**/appdata/
+```
+
+`**/` matches any folder below, so one file covers every service. `.gitignore` only affects untracked files: anything already committed needs `git rm -r --cached <path>` first. Checked with `git status` before committing.
+
+#### Pushing from docker01
+
+GitHub doesn't accept passwords over Git, so docker01 got its own SSH key:
+
+```
+ssh-keygen -t ed25519 -C "docker01"
+cat ~/.ssh/id_ed25519.pub
+git remote set-url origin git@github.com:kaynegraham/<repo>.git
+```
+
+The public key was added to GitHub under Settings > SSH and GPG keys, named `docker01`. `-C` is just a label so I know which machine each key belongs to.
+
+#### Proxmox integration
+
+Homarr shows pve01's node, VM and container counts using a **read-only API token**, not the root login.
+
+1. **API token:** Datacenter > Permissions > API Tokens, `root@pam!homarr`, with privilege separation on. With separation on, the token starts with no permissions, even though it belongs to root.
+2. **Permission:** Datacenter > Permissions > Add > API Token Permission. Path `/`, role `PVEAuditor` (read-only), propagate on.
+3. **Homarr fields:** URL `https://10.10.99.2:8006`, username `root`, realm `pam`, token ID `homarr`, plus the secret.
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Certificate not trusted | Proxmox's cert is signed by its own CA (`PVE Cluster Manager CA`), which Homarr doesn't know | Uploaded the CA cert `/etc/pve/pve-root-ca.pem` to Homarr. Trusting the CA trusts every cert it signs. The private key (`pve-root-ca.key`) never leaves pve01. |
+| Authorization error | Token setup | Tested the token with `curl` to rule out Homarr: `curl -k -H 'Authorization: PVEAPIToken=root@pam!homarr=<secret>' https://10.10.99.2:8006/api2/json/nodes` |
+| Token secret showed in a screenshot | | Deleted and recreated the token, re-added the permission |
+| Node showed, but 0 VMs | The permission was never added. The token page only has privilege separation; permissions are on Datacenter > Permissions. | Added the API Token Permission |
+
+#### Uptime Kuma integration
+
+Homarr has a native Uptime Kuma integration. With no secrets it looks for a status page with the slug `default`, which gave a 404. Fixed by creating a status page in Uptime Kuma, adding the monitors to it, and choosing **Status page slug** in Homarr. No API key needed: status pages are public, read-only.
+
+#### Widgets
+
+Clock, Perth weather (Open-Meteo, set by coordinates, use Perth CBD for screenshots), Proxmox and Uptime Kuma.
+
+To do: app tiles for each service, date on the clock, Pi-hole stats once it's built.
+
+### Checking ports in use
+
+```
+sudo ss -tulpn
+```
+
+| Flag | Meaning |
+|---|---|
+| `-t` | TCP sockets |
+| `-u` | UDP sockets |
+| `-l` | Listening only |
+| `-p` | Show the process using each port (needs sudo) |
+| `-n` | Show port numbers instead of service names |
 
 ---
 
@@ -210,7 +353,12 @@ services:
 
 ## Lessons
 
--
+- Pin image versions. `:latest` turns every pull into a surprise upgrade.
+- Secrets go in `.env`, never in a committed file. Check `git status` before every commit.
+- Every new web UI on the lab means a new port on the FortiGate rule. A reverse proxy fixes that.
+- Give integrations the least access that works: a read-only API token, not root. Same for admin access on firewall interfaces.
+- Self-signed certs: trust the CA, don't switch off verification.
+- `restart: unless-stopped` plus Docker enabled at boot brings containers back after a reboot.
 
 ## Next
 

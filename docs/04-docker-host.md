@@ -255,7 +255,7 @@ Same reason being in the `docker` group is effectively root: the group just gran
 | Port | 7575 | Checked it was free with `ss -tulpn`. Added TCP 7575 to the FortiGate Home to Lab rule. |
 | Data | `./homarr/appdata` bind mount | Ignored by Git |
 | Encryption key | `.env` file, referenced as `${SECRET_ENCRYPTION_KEY}` | Secrets never go in a committed file |
-| Docker socket | TODO: record whether it was kept or removed, and why | |
+| Docker socket | Kept | Lets Homarr show container status. Means two containers (Portainer and Homarr) have root-level access to docker01. Acceptable in an isolated lab with official images; worth revisiting with a socket proxy later. |
 
 #### Secrets and Git
 
@@ -307,9 +307,63 @@ Homarr has a native Uptime Kuma integration. With no secrets it looks for a stat
 
 #### Widgets
 
-Clock, Perth weather (Open-Meteo, set by coordinates, use Perth CBD for screenshots), Proxmox and Uptime Kuma.
+Custom analog clock (see below), Perth weather (Open-Meteo, set by coordinates, use Perth CBD for screenshots), Proxmox and Uptime Kuma.
 
-To do: app tiles for each service, date on the clock, Pi-hole stats once it's built.
+![Homarr dashboard](images/homarr-dashboard.png)
+
+To do: app tiles for each service, Pi-hole stats once it's built.
+
+---
+
+## Step 6b: Custom analog clock
+
+**Why:** Homarr's clock widget is digital only. I wanted an analog face with a 24-hour digital readout, so I wrote a small HTML page and served it from its own container, then embedded it in Homarr with an iFrame widget.
+
+### The page
+
+`docker/clock/html/index.html` is a single file: an SVG clock face drawn in a 100 x 116 viewBox, with JavaScript moving the hands.
+
+| Part | How it works |
+|---|---|
+| Dial and hands | SVG `circle` and `line` elements, each hand drawn pointing at 12 |
+| Hour ticks | Generated in a loop: 12 lines, each rotated 30 degrees further around the centre. Ticks at 12, 3, 6 and 9 are longer and thicker. |
+| Timezone | `Intl.DateTimeFormat` with `timeZone: 'Australia/Perth'`, so the time is always Perth regardless of the viewing device |
+| Hand angles | Seconds x 6 degrees, minutes x 6 degrees, hours x 30 degrees. Minutes include fractional seconds and hours include minutes, so the hands move smoothly instead of jumping. |
+| Animation | `requestAnimationFrame` redraws every frame, so the second hand sweeps |
+| Digital time | An SVG `text` element under the dial, updated each frame in 24-hour `HH:MM:SS`, monospace so the digits don't jiggle |
+| Background | Transparent, so the Homarr wallpaper shows through |
+
+### The container
+
+```yaml
+services:
+  clock:
+    image: nginx:stable-alpine
+    container_name: clock
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+```
+
+| Choice | Why |
+|---|---|
+| `nginx:stable-alpine` | Tiny web server image on the stable release line. Alpine keeps it to a few MB. |
+| `./html:/usr/share/nginx/html` | nginx serves files from that folder by default. Editing `index.html` on docker01 takes effect on refresh, no restart needed. |
+| `:ro` | Read-only mount. The container can serve the files but can't change them, so a compromised web server can't modify the page. |
+| Port 8081 | Free on docker01. Added TCP 8081 to the FortiGate Home to Lab rule, because the iFrame is loaded by my browser directly from docker01, not by Homarr. |
+
+The `html` folder holds no secrets, so it's committed to Git.
+
+### Issues hit
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Hour ticks didn't show | `createElementNS('http://w3.org', 'line')` used the wrong namespace, so the browser made generic elements instead of SVG | Correct SVG namespace: `http://www.w3.org/2000/svg` |
+| Page looked broken when opened directly | Transparent background shows as white in a normal tab, and the hands are white | Expected. It's built for the iFrame. |
+| White box behind the clock in Homarr | Chrome puts an opaque background behind an iFrame whose colour scheme doesn't match the parent page | Added `color-scheme: dark` to the page and turned on transparency in the iFrame widget |
+| Hands frozen, no ticks or digital time | Old file still being served, and scripts not allowed in the iFrame | Checked what nginx was serving with `curl -s http://10.10.99.20:8081`, replaced the file, allowed scripts in the widget settings |
 
 ### Checking ports in use
 
@@ -359,6 +413,7 @@ sudo ss -tulpn
 - Give integrations the least access that works: a read-only API token, not root. Same for admin access on firewall interfaces.
 - Self-signed certs: trust the CA, don't switch off verification.
 - `restart: unless-stopped` plus Docker enabled at boot brings containers back after a reboot.
+- Never `git push --force` to `main`. With the repo cloned on both the laptop and docker01, a force push from the laptop wiped docker01's compose commits from GitHub. Fixed with `git pull --rebase` then a normal push. Always pull before pushing.
 
 ## Next
 

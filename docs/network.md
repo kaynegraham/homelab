@@ -37,7 +37,7 @@ Only **PING** is enabled. FMG-Access, SSH and Security Fabric Connection were re
 | Incoming / Outgoing | wan1 / internal |
 | Source | Home-LAN (192.168.1.0/24) |
 | Destination | Lab-LAN (10.10.99.0/24) |
-| Services | PING, PROXMOXUI (TCP 8006), RDP, SSH, Uptime Kuma (TCP 3001), Portainer (TCP 9443), Homarr (TCP 7575) |
+| Services | PING, PROXMOXUI (TCP 8006), RDP, SSH, Uptime Kuma (TCP 3001), Portainer (TCP 9443), Homarr (TCP 7575), Clock (TCP 8081) |
 | NAT | Off |
 | Logging | All sessions |
 
@@ -84,4 +84,4 @@ Tailscale runs on pve01 and advertises 10.10.99.0/24 as a subnet route. See [02]
 | Target | Address |
 |---|---|
 | Proxmox UI | https://pve01:8006 via Tailscale |
-| Lab machines | Their 10.10.99.x address via the subnet route |
+| Lab machines | Their 10.10.99.x address via the subnet route |	

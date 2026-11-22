@@ -46,23 +46,10 @@ Full details in [network.md](docs/network.md).
 | 01 | [Network access to the lab](docs/01-network-access.md) | Done |
 | 02 | [Remote access with Tailscale](docs/02-tailscale-remote-access.md) | Done |
 | 03 | [DC01: first domain controller](docs/03-dc01.md) | Done |
-| 04 | [Docker host: Portainer, Uptime Kuma, Homarr, Pi-hole](docs/04-docker-host.md) | In progress |
+| 04 | [Docker host: Uptime Kuma, Portainer, Homarr, custom clock, Pi-hole](docs/04-docker-host.md) | In progress |
 | 05 | Reverse proxy and HTTPS with a lab domain | Planned |
 | 06 | DC02: second domain controller (Server Core) | Planned, after RAM upgrade |
 | 07 | Windows 11 client, OUs and GPOs | Planned |
 | 08 | AD Certificate Services (internal CA) | Planned |
 | 09 | WireGuard inside the lab | Planned |
 
-## To do
-
-- [x] Order RAM (2x8GB DDR4-2133), see [hardware](docs/hardware.md)
-- [ ] Rerun Windows Update on DC01 (running), then `dcdiag /q` once old errors age out
-- [x] Add the 10.10.99.0/24 static route on the home router
-- [x] Turn on logging for the FortiGate implicit deny rule
-- [x] Remove the leftover `ts01` container (VM 100)
-- [x] Approve the 10.10.99.0/24 subnet route in Tailscale
-
-## Rules for this repo
-
-- No passwords, keys or real public IPs.
-- Nothing from work or clients.

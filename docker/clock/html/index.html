@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perth Analog Clock</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  svg {
+    width: 90%;
+    height: 90%;
+    max-width: 100%;
+    max-height: 100%;
+  }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 100 116">
+  <circle cx="50" cy="50" r="46" fill="rgba(30, 32, 40, 0.45)" stroke="rgba(255, 255, 255, 0.25)" stroke-width="2" />
+  <g id="ticks" stroke="rgba(255, 255, 255, 0.7)" stroke-linecap="round"></g>
+  <line id="hour" x1="50" y1="50" x2="50" y2="26" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
+  <line id="minute" x1="50" y1="50" x2="50" y2="16" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+  <line id="second" x1="50" y1="56" x2="50" y2="13" stroke="#fa5252" stroke-width="1.2" stroke-linecap="round" />
+  <circle cx="50" cy="50" r="2.8" fill="#fa5252" />
+  <text id="digital" x="50" y="110" text-anchor="middle" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="600" letter-spacing="0.5">--:--:--</text>
+</svg>
+
+<script>
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const ticksGroup = document.getElementById('ticks');
+
+  for (let i = 0; i < 12; i++) {
+    const isCardinal = i % 3 === 0;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', '50');
+    line.setAttribute('y1', isCardinal ? '8' : '9');
+    line.setAttribute('x2', '50');
+    line.setAttribute('y2', isCardinal ? '14' : '12');
+    line.setAttribute('stroke-width', isCardinal ? '2' : '1.2');
+    line.setAttribute('transform', `rotate(${i * 30} 50 50)`);
+    ticksGroup.appendChild(line);
+  }
+
+  const hourEl = document.getElementById('hour');
+  const minuteEl = document.getElementById('minute');
+  const secondEl = document.getElementById('second');
+  const digitalEl = document.getElementById('digital');
+  const pad = (n) => String(n).padStart(2, '0');
+
+  const formatter = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Perth',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+
+  function updateClock() {
+    const now = new Date();
+    const parts = formatter.formatToParts(now);
+    const getPart = (type) => parseInt(parts.find(p => p.type === type).value, 10);
+
+    const hours24 = getPart('hour') % 24;
+    const hours = hours24 % 12;
+    const minutes = getPart('minute');
+    const wholeSeconds = getPart('second');
+    const seconds = wholeSeconds + now.getMilliseconds() / 1000;
+
+    digitalEl.textContent = `${pad(hours24)}:${pad(minutes)}:${pad(wholeSeconds)}`;
+
+    secondEl.setAttribute('transform', `rotate(${seconds * 6} 50 50)`);
+    minuteEl.setAttribute('transform', `rotate(${(minutes + seconds / 60) * 6} 50 50)`);
+    hourEl.setAttribute('transform', `rotate(${(hours + minutes / 60) * 30} 50 50)`
+    requestAnimationFrame(updateClock);
+  }
+
+  requestAnimationFrame(updateClock);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  clock:
+    image: nginx:stable-alpine
+    container_name: clock
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro

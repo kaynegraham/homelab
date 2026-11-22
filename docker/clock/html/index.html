@@ -3,12 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
 <title>Perth Analog Clock</title>
 <style>
   * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+  }
+  :root {
+    color-scheme: dark;
   }
   html, body {
     width: 100%;
@@ -83,7 +87,8 @@
 
     secondEl.setAttribute('transform', `rotate(${seconds * 6} 50 50)`);
     minuteEl.setAttribute('transform', `rotate(${(minutes + seconds / 60) * 6} 50 50)`);
-    hourEl.setAttribute('transform', `rotate(${(hours + minutes / 60) * 30} 50 50)`
+    hourEl.setAttribute('transform', `rotate(${(hours + minutes / 60) * 30} 50 50)`);
+
     requestAnimationFrame(updateClock);
   }
 

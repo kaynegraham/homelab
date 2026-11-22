@@ -2,9 +2,11 @@
 
 [Back to README](../README.md) · Previous: [03](03-dc01.md)
 
-> Status: in progress
+> Status: done
 
 ## Goal
+
+![docker01 diagram](images/docker01-diagram.png)
 
 Build a Linux VM that runs containers with Docker Compose, then run Portainer, Uptime Kuma, Homarr and Pi-hole on it. Every service is defined in a compose file in this repo, so the whole host can be rebuilt from Git.
 
@@ -381,29 +383,118 @@ sudo ss -tulpn
 
 ---
 
-## Step 7: Pi-hole
+## Step 7: Pi-hole ✅
 
-**Why:** lab DNS with ad blocking and local names, so you stop typing IPs.
+**Why:** lab DNS with ad blocking, plus local names so I don't have to type IPs.
 
-**Figure out:**
-- Pi-hole's compose setup from their docs.
-- DNS runs on port 53. When you start it, there's a good chance it fails because something on the VM is already using port 53. Work out what that is and how to fix it properly, rather than just picking a different port.
-- Add local DNS records like `kuma.lab` pointing at `10.10.99.20`.
+### Compose
 
-**Check:** `nslookup kuma.lab 10.10.99.20` from your laptop returns `10.10.99.20`, and ads are blocked on a device using Pi-hole as its DNS.
+```yaml
+services:
+  pihole:
+    container_name: pihole
+    hostname: pihole
+    image: pihole/pihole:<pinned version>
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8082:80/tcp"
+    environment:
+      TZ: 'Australia/Perth'
+      FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
+      FTLCONF_dns_listeningMode: 'ALL'
+    volumes:
+      - './data:/etc/pihole'
+    cap_add:
+      - SYS_NICE
+    restart: unless-stopped
+```
 
-**Notes:**
-- What was using port 53, and why was it there?
-- Why does the FortiGate need a rule change for other home devices to use Pi-hole, when SSH already worked?
-- Once DC01 is back on, how should DC01 and Pi-hole work together? Which one should forward to which, and why?
+| Choice | Why |
+|---|---|
+| Ports 53 TCP and UDP | DNS mostly uses UDP, and falls back to TCP for large answers |
+| Web UI on 8082, no 443 | Keeps 80 and 443 free for the reverse proxy in 05 |
+| Password in `.env` | Same as Homarr: secrets never go in a committed file |
+| `hostname: pihole` | Without it, Docker uses a random container ID as the hostname, which showed up in the Pi-hole UI |
+| `./data` volume | Covered by the existing `.gitignore` (the docs use `./etc-pihole`, which wouldn't be) |
+| Only `SYS_NICE` | The template also adds `NET_ADMIN` (DHCP) and `SYS_TIME` (NTP). Pi-hole does neither here, so they were removed. Least privilege. |
+| `dns_listeningMode: ALL` | Needed with Docker's default bridge network, because queries arrive from the bridge, not the local subnet |
 
----
+### Port 53 clash
+
+Starting the container failed because port 53 was already taken.
+
+```
+sudo ss -tulpn | grep :53
+```
+
+`systemd-resolved` runs a local DNS "stub listener" on 127.0.0.53:53 on Ubuntu. Every program on docker01 sends DNS lookups to it, and it forwards them on. Fixed by turning the stub listener off in `/etc/systemd/resolved.conf` (`DNSStubListener=no`) and restarting the service, rather than moving Pi-hole to another port (every DNS client expects 53). Checked `ping google.com` still worked afterwards.
+
+### Upstream DNS
+
+**Quad9 (filtered, DNSSEC)** only.
+
+- Filtered: Quad9 blocks known malware and phishing domains, on top of Pi-hole's ad lists.
+- DNSSEC: checks answers haven't been tampered with.
+- No ECS: it would pass part of my IP to the sites being looked up.
+- No Cloudflare alongside it: Pi-hole spreads queries across every upstream that's ticked, so mixing filtered and unfiltered servers means a bad domain gets blocked one time and allowed the next. Quad9's option already includes two servers.
+- Not FortiGuard: the FortiGate's default DNS, but Fortinet's extra DNS features depend on a licence, and Pi-hole should decide where lab DNS goes.
+
+### Local DNS records
+
+Under Settings > Local DNS Records, using `home.arpa`, which is officially reserved for home networks (RFC 8375) so it can never clash with a real domain:
+
+| Name | IP |
+|---|---|
+| kuma.home.arpa | 10.10.99.20 |
+| portainer.home.arpa | 10.10.99.20 |
+| homarr.home.arpa | 10.10.99.20 |
+| docker01.home.arpa | 10.10.99.20 |
+| pve.home.arpa | 10.10.99.2 |
+
+Ports are still needed (for example `http://kuma.home.arpa:3001`) until the reverse proxy.
+
+### Firewall
+
+Two separate additions to the Home to Lab rule:
+- The Pi-hole web UI port (8082)
+- The built-in **DNS** service (UDP and TCP 53). Without it, `nslookup` from the laptop timed out even though the web UI worked.
+
+### Who uses Pi-hole
+
+| Device | DNS | Why |
+|---|---|---|
+| Laptop | 10.10.99.20 only | Set manually in Windows. No alternate DNS, because Windows sometimes uses it even when the primary is fine, which bypasses Pi-hole. Rollback: set DNS back to automatic if the lab is down. |
+| docker01 | 1.1.1.1, 8.8.8.8 | Pi-hole runs on docker01. If docker01 relied on Pi-hole, it could get stuck at boot before Pi-hole starts. |
+| Home router | Unchanged | Pi-hole is a single point of failure. Every reboot of docker01 would take DNS down for the whole house. Not until there's a second Pi-hole on separate hardware, kept in sync. |
+
+### Integrations
+
+- **Uptime Kuma:** a **DNS** monitor (resolve `google.com` via 10.10.99.20 on port 53), which proves Pi-hole is answering, not just that the container is up.
+- **Homarr:** Pi-hole integration using an **app password** (Settings > Web interface / API, Expert mode), not the admin login. It only works for the API and can be revoked on its own. URL `http://10.10.99.20:8082` with no `/admin`.
+
+![Homarr with Pi-hole](images/homarr-dashboard-pihole.png)
+
+### Testing
+
+```
+nslookup google.com 10.10.99.20
+nslookup doubleclick.net 10.10.99.20
+nslookup kuma.home.arpa 10.10.99.20
+```
+
+Real IP, `0.0.0.0` (blocked), then 10.10.99.20. "Server: UnKnown" in the output just means there's no reverse record for the DNS server's IP. Cosmetic, fixed by adding `docker01.home.arpa`.
 
 ## Issues hit
 
 | Problem | Cause | Fix |
 |---|---|---|
-| | | |
+| Pi-hole wouldn't start | `systemd-resolved` already on port 53 | Disabled its stub listener |
+| DNS queries from the laptop timed out | FortiGate rule had the web port but not DNS | Added the built-in DNS service |
+| Local names didn't resolve in the browser | Laptop was still using the home router for DNS | Set the laptop's DNS to Pi-hole |
+| Clock showed nginx 403 | Git deleted and recreated the `html` folder, and the container was still bound to the old one | `docker compose up -d --force-recreate` |
+| Compose files disappeared from disk | A force push from the laptop, then syncing docker01 to it, removed the files Git was tracking | Found the old commit with `git log -g -- <file>` and restored with `git checkout <id> -- <files>` |
+| Homarr `.env` and data nearly committed | Files were already staged before `.gitignore` existed | `git reset --soft origin/main`, then `git restore --staged` on them. Never pushed. |
 
 ## Lessons
 
@@ -413,8 +504,11 @@ sudo ss -tulpn
 - Give integrations the least access that works: a read-only API token, not root. Same for admin access on firewall interfaces.
 - Self-signed certs: trust the CA, don't switch off verification.
 - `restart: unless-stopped` plus Docker enabled at boot brings containers back after a reboot.
+- A bind mount is tied to the folder that existed when the container started. If the folder is deleted and recreated, recreate the container.
+- `.gitignore` doesn't help with files that are already staged or tracked. Read `git status` before every commit.
+- Don't make a whole network depend on one box. Pi-hole stays off the home router until there's a second one.
 - Never `git push --force` to `main`. With the repo cloned on both the laptop and docker01, a force push from the laptop wiped docker01's compose commits from GitHub. Fixed with `git pull --rebase` then a normal push. Always pull before pushing.
 
 ## Next
 
-05: Reverse proxy and HTTPS with a lab domain.
+05: Reverse proxy and HTTPS with a lab domain. That gets rid of the port numbers and the growing list of ports on the firewall rule.

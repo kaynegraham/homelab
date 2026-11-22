@@ -17,6 +17,7 @@ Home lab for learning Windows Server, Active Directory, Linux, Docker and networ
 - **Domain:** `lab.twilight` (NetBIOS `TWILIGHT`)
 - **Lab subnet:** `10.10.99.0/24`
 - **Remote access:** Tailscale on the Proxmox host
+- **Services:** Uptime Kuma, Portainer, Homarr and Pi-hole on docker01
 
 ## Network
 
@@ -46,10 +47,11 @@ Full details in [network.md](docs/network.md).
 | 01 | [Network access to the lab](docs/01-network-access.md) | Done |
 | 02 | [Remote access with Tailscale](docs/02-tailscale-remote-access.md) | Done |
 | 03 | [DC01: first domain controller](docs/03-dc01.md) | Done |
-| 04 | [Docker host: Uptime Kuma, Portainer, Homarr, custom clock, Pi-hole](docs/04-docker-host.md) | In progress |
+| 04 | [Docker host: Uptime Kuma, Portainer, Homarr, custom clock, Pi-hole](docs/04-docker-host.md) | Done |
 | 05 | Reverse proxy and HTTPS with a lab domain | Planned |
 | 06 | DC02: second domain controller (Server Core) | Planned, after RAM upgrade |
 | 07 | Windows 11 client, OUs and GPOs | Planned |
 | 08 | AD Certificate Services (internal CA) | Planned |
 | 09 | WireGuard inside the lab | Planned |
+
 

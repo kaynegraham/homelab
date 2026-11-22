@@ -37,7 +37,7 @@ Only **PING** is enabled. FMG-Access, SSH and Security Fabric Connection were re
 | Incoming / Outgoing | wan1 / internal |
 | Source | Home-LAN (192.168.1.0/24) |
 | Destination | Lab-LAN (10.10.99.0/24) |
-| Services | PING, PROXMOXUI (TCP 8006), RDP, SSH, Uptime Kuma (TCP 3001), Portainer (TCP 9443), Homarr (TCP 7575), Clock (TCP 8081) |
+| Services | PING, PROXMOXUI (TCP 8006), RDP, SSH, Uptime Kuma (TCP 3001), Portainer (TCP 9443), Homarr (TCP 7575), Clock (TCP 8081), Pi-hole UI (TCP 8082), DNS |
 | NAT | Off |
 | Logging | All sessions |
 
@@ -69,9 +69,12 @@ Replaced the original laptop-only rule from [01](01-network-access.md), which ha
 
 | Client | DNS server |
 |---|---|
-| DC01 | Itself, with 1.1.1.1 as a forwarder |
-| Lab machines | DC01 (10.10.99.11) |
-| docker01 | 1.1.1.1, 8.8.8.8 for now. Move to Pi-hole/DC01 later. |
+| Laptop | Pi-hole (10.10.99.20) |
+| docker01 | 1.1.1.1, 8.8.8.8 (Pi-hole runs on it, so it doesn't depend on Pi-hole) |
+| DC01 | Itself for lab.twilight. Forwarder to change from 1.1.1.1 to Pi-hole when it's back on. |
+| Home router | Unchanged until there's a second Pi-hole |
+
+Pi-hole upstream: Quad9 (filtered, DNSSEC). Local names use `home.arpa`, see [04](04-docker-host.md#step-7-pi-hole-).
 
 ## Internet connection
 
@@ -84,4 +87,4 @@ Tailscale runs on pve01 and advertises 10.10.99.0/24 as a subnet route. See [02]
 | Target | Address |
 |---|---|
 | Proxmox UI | https://pve01:8006 via Tailscale |
-| Lab machines | Their 10.10.99.x address via the subnet route |	
+| Lab machines | Their 10.10.99.x address via the subnet route |

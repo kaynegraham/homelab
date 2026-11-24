@@ -58,7 +58,7 @@ Then in the Tailscale admin console:
 
 | Target | Address |
 |---|---|
-| Proxmox UI (direct) | https://100.64.39.95:8006 or https://pve01:8006 |
+| Proxmox UI (direct) | https://pve01:8006 (MagicDNS) or its Tailscale IP |
 | Anything on the lab subnet | Its 10.10.99.x address, via the subnet route |
 
 Tested from my phone on mobile data.

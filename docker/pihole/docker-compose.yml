@@ -22,6 +22,8 @@ services:
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
       # If using Docker's default `bridge` network setting the dns listening mode should be set to 'ALL'
       FTLCONF_dns_listeningMode: 'ALL'
+      # DNSMASQ redirect to docker01
+      FTLCONF_misc_dnsmasq_lines: 'address=/twilight.goaround.lol/10.10.99.20'
     # Volumes store your data between container upgrades
     volumes:
       # For persisting Pi-hole's databases and common configuration file

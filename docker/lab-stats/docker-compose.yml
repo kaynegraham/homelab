@@ -1,0 +1,20 @@
+services:
+  lab-stats:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lab-stats
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./certs/pve-ca.pem:/certs/pve-ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

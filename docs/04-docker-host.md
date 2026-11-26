@@ -418,7 +418,71 @@ services:
 
 The `html` folder holds no secrets, so it's committed to Git.
 
-### Issues hit
+### Step 8: lab-stats panel ✅
+
+**Why:** Homarr's built-in integration widgets didn't match the custom clock and showed more than needed. I wanted one compact panel with live stats from every part of the lab, styled to match the clock.
+
+### Why it needs a backend
+
+The browser can't call the lab APIs directly:
+
+- Proxmox, Pi-hole and Portainer need credentials, and anything in a web page can be read by anyone who opens it.
+- None of them send CORS headers, so the browser would block the responses anyway.
+
+So `docker/lab-stats` is a small Node.js service that holds the credentials, polls each API, caches the combined result for 30 seconds, and serves one JSON endpoint (`/api/stats`) plus the page. The browser only ever sees the numbers.
+
+### Integrations
+
+| Source | What it collects | Auth |
+|---|---|---|
+| Proxmox | CPU, RAM, VMs running / total, uptime | Read-only API token (`PVEAuditor`) |
+| Uptime Kuma | Monitor availability and uptime | None, reads the public status page API |
+| Pi-hole v6 | Total queries, blocked queries, percentage blocked | App password, session reused until it expires |
+| Portainer | Containers running, stopped and total | Access token, plus the Docker environment's endpoint ID |
+
+- All credentials and IDs live in `docker/lab-stats/.env`, which is gitignored. A `.env.example` with placeholders is committed.
+- Responses are cached for 30 seconds so several open tabs don't hammer the APIs.
+- If one source is unavailable, the rest keep working and that tile shows as unavailable instead of breaking the page.
+
+### Trusting the Proxmox CA
+
+Same lesson as the Homarr integration: Proxmox's certificate is signed by its own CA. Instead of switching off TLS verification:
+
+1. Built a CA bundle containing Proxmox's root certificate (`pve-root-ca.pem`, the public half only).
+2. Mounted it read-only into the container.
+3. Pointed Node at it with `NODE_EXTRA_CA_CERTS`, so every HTTPS call to Proxmox is properly verified.
+
+### Testing the API
+
+```
+curl -i http://10.10.99.20:8083/api/stats
+```
+
+HTTP 200 with JSON, and all four integrations returning data.
+
+### The dashboard
+
+`docker/lab-stats/public/index.html`, six compact tiles:
+
+| Tile | Shows |
+|---|---|
+| CPU | Percentage with bar |
+| RAM | Percentage with bar |
+| VMs | Running / total |
+| Uptime Kuma | Service status and uptime |
+| Pi-hole | Total queries with a full-width percentage bar |
+| Docker | Containers running / total |
+
+- Aviation and fireground inspired colours to match the clock
+- Responsive layout for Homarr's small iFrame
+- The first version's header and footer were getting clipped in Homarr, so they were removed
+- Percentage bars made more visible in a later revision, since the first ones were hard to read at a glance
+
+Published through Nginx Proxy Manager as `https://stats.twilight.goaround.lol` (port 8083 behind it) and embedded in Homarr with an iFrame, the same way as the clock.
+
+![lab-stats panel](images/lab-stats.png)
+
+## Issues hit
 
 | Problem | Cause | Fix |
 |---|---|---|
@@ -554,6 +618,7 @@ Real IP, `0.0.0.0` (blocked), then 10.10.99.20. "Server: UnKnown" in the output 
 | Local names didn't resolve in the browser | Laptop was still using the home router for DNS | Set the laptop's DNS to Pi-hole |
 | Clock showed nginx 403 | Git deleted and recreated the `html` folder, and the container was still bound to the old one | `docker compose up -d --force-recreate` |
 | Compose files disappeared from disk | A force push from the laptop, then syncing docker01 to it, removed the files Git was tracking | Found the old commit with `git log -g -- <file>` and restored with `git checkout <id> -- <files>` |
+| lab-stats header and footer clipped in Homarr | Panel was designed for a larger frame than Homarr's widget | Removed them and made the layout responsive |
 | Homarr `.env` and data nearly committed | Files were already staged before `.gitignore` existed | `git reset --soft origin/main`, then `git restore --staged` on them. Never pushed. |
 
 ## Lessons
@@ -571,4 +636,4 @@ Real IP, `0.0.0.0` (blocked), then 10.10.99.20. "Server: UnKnown" in the output 
 
 ## Next
 
-[05: Reverse proxy and HTTPS](05-reverse-proxy.md). Gets rid of the port numbers and the growing list of ports on the firewall rule.`
+[05: Reverse proxy and HTTPS](05-reverse-proxy.md). Gets rid of the port numbers and the growing list of ports on the firewall rule.

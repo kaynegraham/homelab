@@ -19,7 +19,7 @@
 | pve01 | 10.10.99.2 | Proxmox host |
 | DC01 | 10.10.99.11 | Domain controller, DNS |
 | DC02 | 10.10.99.12 | Planned |
-| docker01 | 10.10.99.20 | Ubuntu Server, Docker host, see [04](04-docker-host.md) |
+| docker01 | 10.10.99.20 | Ubuntu Server, Docker host, see [04](04-docker-host.md). lab-stats on 8083. |
 | Clients | 10.10.99.100 to 150 | Reserved for DHCP from DC01 later |
 
 The FortiGate had a DHCP server running on `internal` (10.10.99.100 to 150). Turned it off since every lab device has a static IP. DHCP will run on DC01 once clients are added, so there's only ever one DHCP server on the subnet.
@@ -37,11 +37,11 @@ Only **PING** is enabled. FMG-Access, SSH and Security Fabric Connection were re
 | Incoming / Outgoing | wan1 / internal |
 | Source | Home-LAN (192.168.1.0/24) |
 | Destination | Lab-LAN (10.10.99.0/24) |
-| Services | PING, PROXMOXUI (TCP 8006), RDP, SSH, Uptime Kuma (TCP 3001), Portainer (TCP 9443), Homarr (TCP 7575), Clock (TCP 8081), Pi-hole UI (TCP 8082), DNS |
+| Services | HTTP, HTTPS, DNS, Nginx Proxy Manager (TCP 81), PROXMOXUI (TCP 8006), SSH, RDP, PING |
 | NAT | Off |
 | Logging | All sessions |
 
-Every new web UI needs its port added here. A reverse proxy (05) will cut this down to 80 and 443.
+Web UIs all go through Nginx Proxy Manager on 80 and 443, see [05](05-reverse-proxy.md). NPM 81 and Proxmox 8006 stay as direct ways in if the proxy breaks.
 
 Replaced the original laptop-only rule from [01](01-network-access.md), which has been removed.
 
@@ -73,8 +73,9 @@ Replaced the original laptop-only rule from [01](01-network-access.md), which ha
 | docker01 | 1.1.1.1, 8.8.8.8 (Pi-hole runs on it, so it doesn't depend on Pi-hole) |
 | DC01 | Itself for lab.twilight. Forwarder to change from 1.1.1.1 to Pi-hole when it's back on. |
 | Home router | Unchanged until there's a second Pi-hole |
+| Tailscale devices | Split DNS: `twilight.goaround.lol` → Pi-hole, everything else normal |
 
-Pi-hole upstream: Quad9 (filtered, DNSSEC). Local names use `home.arpa`, see [04](04-docker-host.md#step-7-pi-hole-).
+Pi-hole upstream: Quad9 (filtered, DNSSEC). Every name under `twilight.goaround.lol` resolves to docker01 (NPM) via one Pi-hole wildcard rule, see [05](05-reverse-proxy.md). Older `home.arpa` records from [04](04-docker-host.md#step-7-pi-hole-) still work.
 
 ## Internet connection
 
@@ -86,5 +87,5 @@ Tailscale runs on pve01 and advertises 10.10.99.0/24 as a subnet route. See [02]
 
 | Target | Address |
 |---|---|
-| Proxmox UI | https://pve01:8006 via Tailscale |
+| Proxmox UI | https://pve01:8006 via Tailscale, or https://pve.twilight.goaround.lol on the home network |
 | Lab machines | Their 10.10.99.x address via the subnet route |

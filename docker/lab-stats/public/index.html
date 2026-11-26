@@ -1,12 +1,57 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="dark">
-  <title>Lab Stats</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Stats</title>
+<style>
+:root{color-scheme:dark;--bg:#09121c;--panel:#101d2a;--line:#203347;--muted:#8194a8;--text:#edf5fc}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+.dashboard{width:100%;height:100%;padding:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:5px}
+.tile{--accent:#38bdf8;min-width:0;min-height:0;position:relative;overflow:hidden;background:linear-gradient(145deg,#142334,#0e1925);border:1px solid var(--line);border-radius:7px;padding:7px 8px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:3px}
+.tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.cpu{--accent:#36c5f0}.ram{--accent:#a78bfa}.vms{--accent:#60a5fa}.kuma{--accent:#4ade80}.pihole{--accent:#fbbf24}.docker{--accent:#fb923c}
+.top{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0}
+.label{font-size:clamp(8px,2.4vw,10px);font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:#a9bbcd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:6px;height:6px;border-radius:50%;background:#64748b;flex:0 0 auto;box-shadow:0 0 7px currentColor;color:currentColor}
+.dot.good{background:#4ade80;color:#4ade80}.dot.warn{background:#fbbf24;color:#fbbf24}.dot.bad{background:#fb7185;color:#fb7185}
+.value{font-size:clamp(15px,5vw,23px);font-weight:800;line-height:1.05;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.detail{font-size:clamp(8px,2.2vw,10px);line-height:1.1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:10px}
+.track{height:7px;min-height:7px;width:100%;border-radius:99px;background:#26384a;overflow:hidden;margin-top:2px;box-shadow:inset 0 0 0 1px #31465a}
+.fill{height:100%;width:0%;min-width:0;border-radius:99px;background:var(--accent);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 55%,transparent);transition:width .45s ease}
+/* Keep the progress indicator visible in very short Homarr tiles. */
+@media(max-height:180px){.dashboard{padding:3px;gap:3px}.tile{padding:5px 6px 6px;gap:2px}.detail{display:none}.track{height:8px;min-height:8px}.value{font-size:clamp(14px,4.5vw,20px)}}
+@media(max-width:260px){.dashboard{gap:3px;padding:3px}.tile{padding:5px 5px 6px}.label{font-size:8px}.value{font-size:15px}.detail{font-size:8px}}
+</style>
 </head>
 <body>
-  <p>Lab Stats backend is running.</p>
+<main class="dashboard">
+ <section class="tile cpu"><div class="top"><span class="label">CPU LOAD</span><i class="dot" id="cpu-indicator"></i></div><div class="value" id="cpu-value">--%</div><div class="detail">Proxmox processor</div><div class="track"><div class="fill" id="cpu-bar"></div></div></section>
+ <section class="tile ram"><div class="top"><span class="label">MEMORY</span><i class="dot" id="ram-indicator"></i></div><div class="value" id="ram-value">--%</div><div class="detail" id="ram-detail">-- / -- GB used</div><div class="track"><div class="fill" id="ram-bar"></div></div></section>
+ <section class="tile vms"><div class="top"><span class="label">VIRTUAL MACHINES</span><i class="dot" id="vm-indicator"></i></div><div class="value" id="vm-value">-- / --</div><div class="detail">VMs running</div><div class="track"><div class="fill" id="vm-bar"></div></div></section>
+ <section class="tile kuma"><div class="top"><span class="label">UPTIME KUMA</span><i class="dot" id="kuma-indicator"></i></div><div class="value" id="kuma-value">-- / --</div><div class="detail">Services online</div><div class="track"><div class="fill" id="kuma-bar"></div></div></section>
+ <section class="tile pihole"><div class="top"><span class="label">PI-HOLE QUERIES</span><i class="dot" id="pihole-indicator"></i></div><div class="value" id="pihole-value">--</div><div class="detail" id="pihole-detail">-- blocked</div><div class="track"><div class="fill" id="pihole-bar"></div></div></section>
+ <section class="tile docker"><div class="top"><span class="label">DOCKER</span><i class="dot" id="docker-indicator"></i></div><div class="value" id="docker-value">-- / --</div><div class="detail" id="docker-detail">Containers running</div><div class="track"><div class="fill" id="docker-bar"></div></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const pct=(n,d)=>d>0?Math.max(0,Math.min(100,(n/d)*100)):0;
+const setBar=(id,value)=>{$(id).style.width=Math.max(0,Math.min(100,Number(value)||0))+'%'};
+const setDot=(id,state)=>{$(id).className='dot '+(state||'')};
+const fmtGB=n=>(n/1073741824).toFixed(1);
+function unavailable(prefix,detail){$(prefix+'-value').textContent='N/A';setDot(prefix+'-indicator','bad');const el=$(prefix+'-detail');if(el&&detail)el.textContent=detail;const bar=$(prefix+'-bar');if(bar)bar.style.width='0%'}
+async function refresh(){
+ try{
+  const response=await fetch('/api/stats',{cache:'no-store'});if(!response.ok)throw new Error('API '+response.status);const d=await response.json();
+  if(d.proxmox?.ok){const cpu=(d.proxmox.cpu||0)*100;const mem=pct(d.proxmox.memUsed,d.proxmox.memTotal);$('cpu-value').textContent=cpu.toFixed(0)+'%';setBar('cpu-bar',cpu);setDot('cpu-indicator',cpu>=90?'warn':'good');$('ram-value').textContent=mem.toFixed(0)+'%';$('ram-detail').textContent=fmtGB(d.proxmox.memUsed)+' / '+fmtGB(d.proxmox.memTotal)+' GB used';setBar('ram-bar',mem);setDot('ram-indicator',mem>=90?'warn':'good');$('vm-value').textContent=(d.proxmox.vmsRunning??0)+' / '+(d.proxmox.vmsTotal??0);setBar('vm-bar',pct(d.proxmox.vmsRunning,d.proxmox.vmsTotal));setDot('vm-indicator','good')}
+  else{unavailable('cpu');unavailable('ram');unavailable('vm')}
+  if(d.kuma?.ok){const up=d.kuma.up??0,total=d.kuma.total??0;$('kuma-value').textContent=up+' / '+total;$('kuma-bar').style.width=pct(up,total)+'%';setDot('kuma-indicator',up===total?'good':'warn') }else unavailable('kuma');
+  if(d.pihole?.ok){$('pihole-value').textContent=Number(d.pihole.queries||0).toLocaleString();$('pihole-detail').textContent=Number(d.pihole.blocked||0).toLocaleString()+' blocked · '+Number(d.pihole.percentBlocked||0).toFixed(1)+'%';setBar('pihole-bar',100);setDot('pihole-indicator','good')}else unavailable('pihole');
+  if(d.docker?.ok){const run=d.docker.running??0,total=d.docker.total??0;$('docker-value').textContent=run+' / '+total;$('docker-detail').textContent=(d.docker.stopped??0)+' stopped';setBar('docker-bar',pct(run,total));setDot('docker-indicator',run===total?'good':'warn')}else unavailable('docker');
+ }catch(e){['cpu','ram','vm','kuma','pihole','docker'].forEach(p=>unavailable(p,'API unavailable'))}
+}
+refresh();setInterval(refresh,30000);
+</script>
 </body>
 </html>

@@ -17,7 +17,8 @@ Home lab for learning Windows Server, Active Directory, Linux, Docker and networ
 - **Domain:** `lab.twilight` (NetBIOS `TWILIGHT`)
 - **Lab subnet:** `10.10.99.0/24`
 - **Remote access:** Tailscale on the Proxmox host
-- **Services:** Uptime Kuma, Portainer, Homarr and Pi-hole on docker01
+- **Services:** Uptime Kuma, Portainer, Homarr, Pi-hole, Nginx Proxy Manager and a custom lab-stats panel on docker01
+- **Web UIs:** `https://<service>.twilight.goaround.lol`, real Let's Encrypt wildcard cert
 
 ## Network
 
@@ -47,11 +48,21 @@ Full details in [network.md](docs/network.md).
 | 01 | [Network access to the lab](docs/01-network-access.md) | Done |
 | 02 | [Remote access with Tailscale](docs/02-tailscale-remote-access.md) | Done |
 | 03 | [DC01: first domain controller](docs/03-dc01.md) | Done |
-| 04 | [Docker host: Uptime Kuma, Portainer, Homarr, custom clock, Pi-hole](docs/04-docker-host.md) | Done |
-| 05 | Reverse proxy and HTTPS with a lab domain | Planned |
-| 06 | DC02: second domain controller (Server Core) | Planned, after RAM upgrade |
-| 07 | Windows 11 client, OUs and GPOs | Planned |
-| 08 | AD Certificate Services (internal CA) | Planned |
-| 09 | WireGuard inside the lab | Planned |
+| 04 | [Docker host: Uptime Kuma, Portainer, Homarr, Pi-hole, custom clock and stats panel](docs/04-docker-host.md) | Done |
+| 05 | [Reverse proxy and HTTPS: Nginx Proxy Manager, wildcard cert](docs/05-reverse-proxy.md) | Done |
+| 06 | Cloudflare Tunnel and Access: public status page | Planned |
+| 07 | DC02: second domain controller (Server Core) | Planned, after RAM upgrade |
+| 08 | Windows 11 client, OUs and GPOs | Planned |
+| 09 | AD Certificate Services (internal CA) | Planned |
+| 10 | WireGuard inside the lab | Planned |
+
+## To do
+
+- [x] Order RAM (2x8GB DDR4-2133), see [hardware](docs/hardware.md)
+- [x] Rerun Windows Update on DC01 (running), then `dcdiag /q` once old errors age out
+- [x] Add the 10.10.99.0/24 static route on the home router
+- [x] Turn on logging for the FortiGate implicit deny rule
+- [x] Remove the leftover `ts01` container (VM 100)
+- [x] Approve the 10.10.99.0/24 subnet route in Tailscale
 
 

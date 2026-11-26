@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>YPJT Clock</title>
+<title>Lab Clock</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,7 +23,7 @@
 </style>
 </head>
 <body>
-<svg viewBox="0 0 240 128" preserveAspectRatio="xMidYMid meet">
+<svg id="panel" viewBox="0 0 240 128" preserveAspectRatio="xMidYMid meet">
   <circle cx="56" cy="56" r="48" fill="rgba(30, 32, 40, 0.55)" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.6" />
   <g id="ticks" stroke="rgba(255, 255, 255, 0.7)" stroke-linecap="round"></g>
   <text x="56" y="24" text-anchor="middle" class="sans" font-size="6" fill="rgba(255,255,255,0.45)" letter-spacing="0.5">LT</text>
@@ -40,27 +40,69 @@
   <text id="local" x="118" y="24" class="mono" font-size="17" font-weight="700" fill="#ffffff">--:--:--</text>
   <text id="zulu" x="118" y="36" class="mono" font-size="8" fill="#9aa4b2">----Z UTC</text>
 
-  <text x="118" y="52" class="sans" font-size="6.5" font-weight="700" fill="#4dabf7" letter-spacing="0.6">YPJT · JANDAKOT</text>
+  <text id="station" x="118" y="52" class="sans" font-size="6.5" font-weight="700" fill="#4dabf7" letter-spacing="0.6">----</text>
   <text id="wind" x="118" y="64" class="mono" font-size="7.5" fill="#e9ecef">WIND ---°/--KT</text>
   <text id="temp" x="118" y="75" class="mono" font-size="7.5" fill="#e9ecef">TEMP --  DP --</text>
   <text id="qnh" x="118" y="86" class="mono" font-size="7.5" fill="#e9ecef">QNH ----</text>
   <text id="sky" x="118" y="97" class="mono" font-size="7.5" fill="#e9ecef">SKY ---</text>
 
   <line x1="8" y1="110" x2="232" y2="110" stroke="rgba(255,255,255,0.15)" stroke-width="0.6" />
-  <text id="metarLabel" x="8" y="121" class="mono" font-size="6" font-weight="700" fill="#4dabf7">WX</text>
-  <text id="metar" x="26" y="121" class="mono" font-size="6" fill="#cfd4da">loading...</text>
+  <g id="metarLines"></g>
 </svg>
 
 <script>
-  const LAT = -32.0975;
-  const LON = 115.8811;
-  const STATION = 'YPJT';
+  // Config via URL, for example:
+  //   ?airports=YPJT,YPPH        stations to show (first one is the main display)
+  //   ?airports=YPJT,YPPH&rotate=15   cycle the main display every 15 seconds
+  //   ?demo=1                    sample data for layout testing
+  const AIRPORTS = {
+    YPJT: { name: 'JANDAKOT', lat: -32.0975, lon: 115.8811 },
+    YPPH: { name: 'PERTH', lat: -31.9403, lon: 115.9669 },
+    YPEA: { name: 'PEARCE', lat: -31.6678, lon: 116.0150 },
+    YPMR: { name: 'MURRAY FIELD', lat: -32.5084, lon: 115.8420 },
+    YPKG: { name: 'KALGOORLIE', lat: -30.7894, lon: 121.4617 },
+    YPPD: { name: 'PORT HEDLAND', lat: -20.3778, lon: 118.6264 },
+    YPKA: { name: 'KARRATHA', lat: -20.7122, lon: 116.7733 },
+    YPBO: { name: 'BROOME', lat: -17.9447, lon: 122.2322 },
+  };
+
+  const params = new URLSearchParams(location.search);
+  const DEMO = params.has('demo');
+  const ROTATE_S = Math.max(0, parseInt(params.get('rotate') || '0', 10));
+  const stations = (params.get('airports') || 'YPJT')
+    .toUpperCase().split(',').map(s => s.trim()).filter(s => /^[A-Z]{4}$/.test(s)).slice(0, 4);
+  if (stations.length === 0) stations.push('YPJT');
+
   const REFRESH_MS = 10 * 60 * 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const DEMO = new URLSearchParams(location.search).has('demo');
-
   const $ = (id) => document.getElementById(id);
   const pad = (n, len = 2) => String(Math.round(n)).padStart(len, '0');
+
+  const LINE_GAP = 11;
+  const panelHeight = 128 + (stations.length - 1) * LINE_GAP;
+  $('panel').setAttribute('viewBox', `0 0 240 ${panelHeight}`);
+
+  const metarRows = {};
+  stations.forEach((code, i) => {
+    const y = 121 + i * LINE_GAP;
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', '8');
+    label.setAttribute('y', y);
+    label.setAttribute('class', 'mono');
+    label.setAttribute('font-size', '6');
+    label.setAttribute('font-weight', '700');
+    label.setAttribute('fill', '#4dabf7');
+    label.textContent = 'WX';
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', '36');
+    text.setAttribute('y', y);
+    text.setAttribute('class', 'mono');
+    text.setAttribute('font-size', '6');
+    text.setAttribute('fill', '#cfd4da');
+    text.textContent = `${code} loading...`;
+    $('metarLines').append(label, text);
+    metarRows[code] = { label, text };
+  });
 
   const ticks = $('ticks');
   for (let i = 0; i < 12; i++) {
@@ -107,14 +149,6 @@
     }
   }
 
-  function setMetarLine(label, text) {
-    const x = label === 'WX' ? 26 : 36;
-    $('metarLabel').textContent = label;
-    $('metar').setAttribute('x', x);
-    $('metar').textContent = text;
-    fitText($('metar'), 232 - x);
-  }
-
   function skyFromCover(pct) {
     const oktas = Math.round((pct / 100) * 8);
     if (oktas === 0) return 'CLR';
@@ -124,69 +158,125 @@
     return 'OVC';
   }
 
-  function showWind(dir, kt, gust) {
-    $('windMarker').setAttribute('transform', `rotate(${dir} 56 56)`);
-    $('windMarker').setAttribute('opacity', kt < 1 ? '0' : '1');
-    const g = gust && gust - kt >= 10 ? ` G${pad(gust)}` : '';
-    $('wind').textContent = kt < 1 ? 'WIND CALM' : `WIND ${pad(dir, 3)}°/${pad(kt)}KT${g}`;
+  function modelMetar(code, m) {
+    const now = new Date();
+    const stamp = `${pad(now.getUTCDate())}${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}Z`;
+    const dir = Math.round(m.wind_direction_10m / 10) * 10;
+    const kt = m.wind_speed_10m;
+    const gust = m.wind_gusts_10m - kt >= 10 ? `G${pad(m.wind_gusts_10m)}` : '';
+    const wind = kt < 1 ? '00000KT' : `${pad(dir, 3)}${pad(kt)}${gust}KT`;
+    const t = (v) => (v < 0 ? 'M' : '') + pad(Math.abs(v));
+    return `${code} ${stamp} ${wind} ${skyFromCover(m.cloud_cover)} ${t(m.temperature_2m)}/${t(m.dew_point_2m)} Q${Math.round(m.pressure_msl)}`;
   }
 
-  async function loadModel() {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+  const state = { models: {}, metars: {}, shown: 0 };
+
+  function renderMain() {
+    const code = stations[state.shown];
+    const info = AIRPORTS[code];
+    $('station').textContent = info ? `${code} · ${info.name}` : code;
+    const m = state.models[code];
+    if (!m) {
+      $('wind').textContent = 'WIND ---';
+      $('temp').textContent = 'TEMP --  DP --';
+      $('qnh').textContent = 'QNH ----';
+      $('sky').textContent = 'SKY ---';
+      $('windMarker').setAttribute('opacity', '0');
+      return;
+    }
+    const dir = Math.round(m.wind_direction_10m / 10) * 10;
+    const kt = m.wind_speed_10m;
+    const gust = m.wind_gusts_10m - kt >= 10 ? ` G${pad(m.wind_gusts_10m)}` : '';
+    $('windMarker').setAttribute('transform', `rotate(${dir} 56 56)`);
+    $('windMarker').setAttribute('opacity', kt < 1 ? '0' : '1');
+    $('wind').textContent = kt < 1 ? 'WIND CALM' : `WIND ${pad(dir, 3)}°/${pad(kt)}KT${gust}`;
+    $('temp').textContent = `TEMP ${pad(m.temperature_2m)}°  DP ${pad(m.dew_point_2m)}°`;
+    $('qnh').textContent = `QNH ${Math.round(m.pressure_msl)}`;
+    $('sky').textContent = `SKY ${skyFromCover(m.cloud_cover)} (${Math.round(m.cloud_cover)}%)`;
+  }
+
+  function renderMetars() {
+    stations.forEach((code) => {
+      const row = metarRows[code];
+      const metar = state.metars[code];
+      const m = state.models[code];
+      if (metar) {
+        row.label.textContent = 'METAR';
+        row.text.textContent = metar;
+      } else if (m) {
+        row.label.textContent = 'MODEL';
+        row.text.textContent = modelMetar(code, m);
+      } else {
+        row.label.textContent = 'WX';
+        row.text.textContent = `${code} unavailable`;
+      }
+      fitText(row.text, 232 - 36);
+    });
+  }
+
+  async function loadModels() {
+    const known = stations.filter(c => AIRPORTS[c]);
+    if (known.length === 0) return {};
+    const lat = known.map(c => AIRPORTS[c].lat).join(',');
+    const lon = known.map(c => AIRPORTS[c].lon).join(',');
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       '&current=temperature_2m,dew_point_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover' +
       '&wind_speed_unit=kn&timezone=UTC';
     const res = await fetch(url);
     if (!res.ok) throw new Error('model fetch failed');
-    return (await res.json()).current;
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : [data];
+    const out = {};
+    known.forEach((code, i) => { if (list[i]) out[code] = list[i].current; });
+    return out;
   }
 
-  async function loadMetar() {
-    const res = await fetch(`https://aviationweather.gov/api/data/metar?ids=${STATION}&format=raw`);
+  async function loadMetars() {
+    const res = await fetch(`/metar?ids=${stations.join(',')}&format=raw`);
     if (!res.ok) throw new Error('metar fetch failed');
-    const text = (await res.text()).trim().split('\n')[0];
-    if (!text.startsWith(STATION)) throw new Error('no metar');
-    return text;
+    const out = {};
+    (await res.text()).trim().split('\n').forEach((line) => {
+      const clean = line.replace(/^(METAR|SPECI)\s+/, '').trim();
+      const code = clean.slice(0, 4);
+      if (stations.includes(code) && !out[code]) out[code] = clean;
+    });
+    return out;
   }
 
   function demoData() {
-    return {
-      model: { temperature_2m: 16.4, dew_point_2m: 8.2, wind_speed_10m: 12, wind_direction_10m: 240,
-               wind_gusts_10m: 23, pressure_msl: 1018.3, cloud_cover: 30 },
-      metar: 'YPJT 261230Z AUTO 24012G23KT 9999 // NCD 16/08 Q1018 RMK RF00.0/000.0'
-    };
+    const base = { temperature_2m: 16.4, dew_point_2m: 8.2, wind_speed_10m: 12, wind_direction_10m: 240,
+                   wind_gusts_10m: 23, pressure_msl: 1018.3, cloud_cover: 30 };
+    const models = {};
+    const metars = {};
+    stations.forEach((code, i) => {
+      models[code] = { ...base, wind_direction_10m: 240 - i * 30, temperature_2m: 16.4 + i };
+      metars[code] = `${code} 261230Z AUTO ${pad(240 - i * 30, 3)}12G23KT 9999 // NCD ${16 + i}/08 Q1018`;
+    });
+    return { models, metars };
   }
 
   async function update() {
-    let model, metar;
     if (DEMO) {
-      ({ model, metar } = demoData());
+      const d = demoData();
+      state.models = d.models;
+      state.metars = d.metars;
     } else {
-      [model, metar] = await Promise.all([
-        loadModel().catch(() => null),
-        loadMetar().catch(() => null),
+      const [models, metars] = await Promise.all([
+        loadModels().catch(() => ({})),
+        loadMetars().catch(() => ({})),
       ]);
+      state.models = models;
+      state.metars = metars;
     }
+    renderMain();
+    renderMetars();
+  }
 
-    if (model) {
-      showWind(Math.round(model.wind_direction_10m / 10) * 10, model.wind_speed_10m, model.wind_gusts_10m);
-      $('temp').textContent = `TEMP ${pad(model.temperature_2m)}°  DP ${pad(model.dew_point_2m)}°`;
-      $('qnh').textContent = `QNH ${Math.round(model.pressure_msl)}`;
-      $('sky').textContent = `SKY ${skyFromCover(model.cloud_cover)} (${Math.round(model.cloud_cover)}%)`;
-    }
-
-    if (metar) {
-      setMetarLine('METAR', metar);
-    } else if (model) {
-      const now = new Date();
-      const stamp = `${pad(now.getUTCDate())}${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}Z`;
-      const dir = Math.round(model.wind_direction_10m / 10) * 10;
-      const kt = model.wind_speed_10m;
-      const wind = kt < 1 ? '00000KT' : `${pad(dir, 3)}${pad(kt)}KT`;
-      const t = (v) => (v < 0 ? 'M' : '') + pad(Math.abs(v));
-      setMetarLine('MODEL', `${STATION} ${stamp} ${wind} ${skyFromCover(model.cloud_cover)} ${t(model.temperature_2m)}/${t(model.dew_point_2m)} Q${Math.round(model.pressure_msl)}`);
-    } else {
-      setMetarLine('WX', 'weather unavailable');
-    }
+  if (ROTATE_S > 0 && stations.length > 1) {
+    setInterval(() => {
+      state.shown = (state.shown + 1) % stations.length;
+      renderMain();
+    }, ROTATE_S * 1000);
   }
 
   update();

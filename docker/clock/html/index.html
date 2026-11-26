@@ -4,16 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Perth Analog Clock</title>
+<title>YPJT Clock</title>
 <style>
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-  :root {
-    color-scheme: dark;
-  }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%;
     height: 100%;
@@ -23,76 +17,180 @@
     align-items: center;
     justify-content: center;
   }
-  svg {
-    width: 90%;
-    height: 90%;
-    max-width: 100%;
-    max-height: 100%;
-  }
+  svg { width: 100%; height: 100%; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .sans { font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; }
 </style>
 </head>
 <body>
-<svg viewBox="0 0 100 116">
-  <circle cx="50" cy="50" r="46" fill="rgba(30, 32, 40, 0.45)" stroke="rgba(255, 255, 255, 0.25)" stroke-width="2" />
+<svg viewBox="0 0 240 128" preserveAspectRatio="xMidYMid meet">
+  <circle cx="56" cy="56" r="48" fill="rgba(30, 32, 40, 0.55)" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.6" />
   <g id="ticks" stroke="rgba(255, 255, 255, 0.7)" stroke-linecap="round"></g>
-  <line id="hour" x1="50" y1="50" x2="50" y2="26" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
-  <line id="minute" x1="50" y1="50" x2="50" y2="16" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-  <line id="second" x1="50" y1="56" x2="50" y2="13" stroke="#fa5252" stroke-width="1.2" stroke-linecap="round" />
-  <circle cx="50" cy="50" r="2.8" fill="#fa5252" />
-  <text id="digital" x="50" y="110" text-anchor="middle" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="600" letter-spacing="0.5">--:--:--</text>
+  <text x="56" y="24" text-anchor="middle" class="sans" font-size="6" fill="rgba(255,255,255,0.45)" letter-spacing="0.5">LT</text>
+
+  <g id="windMarker" opacity="0">
+    <path d="M56 6 L52 0 L60 0 Z" fill="#4dabf7" />
+  </g>
+
+  <line id="hour" x1="56" y1="56" x2="56" y2="32" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+  <line id="minute" x1="56" y1="56" x2="56" y2="19" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" />
+  <line id="second" x1="56" y1="62" x2="56" y2="15" stroke="#fa5252" stroke-width="1" stroke-linecap="round" />
+  <circle cx="56" cy="56" r="2.6" fill="#fa5252" />
+
+  <text id="local" x="118" y="24" class="mono" font-size="17" font-weight="700" fill="#ffffff">--:--:--</text>
+  <text id="zulu" x="118" y="36" class="mono" font-size="8" fill="#9aa4b2">----Z UTC</text>
+
+  <text x="118" y="52" class="sans" font-size="6.5" font-weight="700" fill="#4dabf7" letter-spacing="0.6">YPJT · JANDAKOT</text>
+  <text id="wind" x="118" y="64" class="mono" font-size="7.5" fill="#e9ecef">WIND ---°/--KT</text>
+  <text id="temp" x="118" y="75" class="mono" font-size="7.5" fill="#e9ecef">TEMP --  DP --</text>
+  <text id="qnh" x="118" y="86" class="mono" font-size="7.5" fill="#e9ecef">QNH ----</text>
+  <text id="sky" x="118" y="97" class="mono" font-size="7.5" fill="#e9ecef">SKY ---</text>
+
+  <line x1="8" y1="110" x2="232" y2="110" stroke="rgba(255,255,255,0.15)" stroke-width="0.6" />
+  <text id="metarLabel" x="8" y="121" class="mono" font-size="6" font-weight="700" fill="#4dabf7">WX</text>
+  <text id="metar" x="26" y="121" class="mono" font-size="6" fill="#cfd4da">loading...</text>
 </svg>
 
 <script>
+  const LAT = -32.0975;
+  const LON = 115.8811;
+  const STATION = 'YPJT';
+  const REFRESH_MS = 10 * 60 * 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const ticksGroup = document.getElementById('ticks');
+  const DEMO = new URLSearchParams(location.search).has('demo');
 
+  const $ = (id) => document.getElementById(id);
+  const pad = (n, len = 2) => String(Math.round(n)).padStart(len, '0');
+
+  const ticks = $('ticks');
   for (let i = 0; i < 12; i++) {
-    const isCardinal = i % 3 === 0;
+    const major = i % 3 === 0;
     const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', '50');
-    line.setAttribute('y1', isCardinal ? '8' : '9');
-    line.setAttribute('x2', '50');
-    line.setAttribute('y2', isCardinal ? '14' : '12');
-    line.setAttribute('stroke-width', isCardinal ? '2' : '1.2');
-    line.setAttribute('transform', `rotate(${i * 30} 50 50)`);
-    ticksGroup.appendChild(line);
+    line.setAttribute('x1', '56');
+    line.setAttribute('y1', major ? '10' : '11');
+    line.setAttribute('x2', '56');
+    line.setAttribute('y2', major ? '16' : '14');
+    line.setAttribute('stroke-width', major ? '1.8' : '1');
+    line.setAttribute('transform', `rotate(${i * 30} 56 56)`);
+    ticks.appendChild(line);
   }
 
-  const hourEl = document.getElementById('hour');
-  const minuteEl = document.getElementById('minute');
-  const secondEl = document.getElementById('second');
-  const digitalEl = document.getElementById('digital');
-  const pad = (n) => String(n).padStart(2, '0');
-
-  const formatter = new Intl.DateTimeFormat('en-AU', {
-    timeZone: 'Australia/Perth',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hour12: false
+  const perth = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Perth', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false
   });
 
-  function updateClock() {
+  function tick() {
     const now = new Date();
-    const parts = formatter.formatToParts(now);
-    const getPart = (type) => parseInt(parts.find(p => p.type === type).value, 10);
+    const parts = perth.formatToParts(now);
+    const get = (t) => parseInt(parts.find(p => p.type === t).value, 10);
+    const h24 = get('hour') % 24;
+    const m = get('minute');
+    const s = get('second');
+    const sf = s + now.getMilliseconds() / 1000;
 
-    const hours24 = getPart('hour') % 24;
-    const hours = hours24 % 12;
-    const minutes = getPart('minute');
-    const wholeSeconds = getPart('second');
-    const seconds = wholeSeconds + now.getMilliseconds() / 1000;
+    $('second').setAttribute('transform', `rotate(${sf * 6} 56 56)`);
+    $('minute').setAttribute('transform', `rotate(${(m + sf / 60) * 6} 56 56)`);
+    $('hour').setAttribute('transform', `rotate(${((h24 % 12) + m / 60) * 30} 56 56)`);
 
-    digitalEl.textContent = `${pad(hours24)}:${pad(minutes)}:${pad(wholeSeconds)}`;
+    $('local').textContent = `${pad(h24)}:${pad(m)}:${pad(s)}`;
+    $('zulu').textContent = `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}Z UTC`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 
-    secondEl.setAttribute('transform', `rotate(${seconds * 6} 50 50)`);
-    minuteEl.setAttribute('transform', `rotate(${(minutes + seconds / 60) * 6} 50 50)`);
-    hourEl.setAttribute('transform', `rotate(${(hours + minutes / 60) * 30} 50 50)`);
-
-    requestAnimationFrame(updateClock);
+  function fitText(el, maxWidth) {
+    el.removeAttribute('textLength');
+    el.removeAttribute('lengthAdjust');
+    if (el.getComputedTextLength() > maxWidth) {
+      el.setAttribute('textLength', maxWidth);
+      el.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+    }
   }
 
-  requestAnimationFrame(updateClock);
+  function setMetarLine(label, text) {
+    const x = label === 'WX' ? 26 : 36;
+    $('metarLabel').textContent = label;
+    $('metar').setAttribute('x', x);
+    $('metar').textContent = text;
+    fitText($('metar'), 232 - x);
+  }
+
+  function skyFromCover(pct) {
+    const oktas = Math.round((pct / 100) * 8);
+    if (oktas === 0) return 'CLR';
+    if (oktas <= 2) return 'FEW';
+    if (oktas <= 4) return 'SCT';
+    if (oktas <= 7) return 'BKN';
+    return 'OVC';
+  }
+
+  function showWind(dir, kt, gust) {
+    $('windMarker').setAttribute('transform', `rotate(${dir} 56 56)`);
+    $('windMarker').setAttribute('opacity', kt < 1 ? '0' : '1');
+    const g = gust && gust - kt >= 10 ? ` G${pad(gust)}` : '';
+    $('wind').textContent = kt < 1 ? 'WIND CALM' : `WIND ${pad(dir, 3)}°/${pad(kt)}KT${g}`;
+  }
+
+  async function loadModel() {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+      '&current=temperature_2m,dew_point_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover' +
+      '&wind_speed_unit=kn&timezone=UTC';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('model fetch failed');
+    return (await res.json()).current;
+  }
+
+  async function loadMetar() {
+    const res = await fetch(`https://aviationweather.gov/api/data/metar?ids=${STATION}&format=raw`);
+    if (!res.ok) throw new Error('metar fetch failed');
+    const text = (await res.text()).trim().split('\n')[0];
+    if (!text.startsWith(STATION)) throw new Error('no metar');
+    return text;
+  }
+
+  function demoData() {
+    return {
+      model: { temperature_2m: 16.4, dew_point_2m: 8.2, wind_speed_10m: 12, wind_direction_10m: 240,
+               wind_gusts_10m: 23, pressure_msl: 1018.3, cloud_cover: 30 },
+      metar: 'YPJT 261230Z AUTO 24012G23KT 9999 // NCD 16/08 Q1018 RMK RF00.0/000.0'
+    };
+  }
+
+  async function update() {
+    let model, metar;
+    if (DEMO) {
+      ({ model, metar } = demoData());
+    } else {
+      [model, metar] = await Promise.all([
+        loadModel().catch(() => null),
+        loadMetar().catch(() => null),
+      ]);
+    }
+
+    if (model) {
+      showWind(Math.round(model.wind_direction_10m / 10) * 10, model.wind_speed_10m, model.wind_gusts_10m);
+      $('temp').textContent = `TEMP ${pad(model.temperature_2m)}°  DP ${pad(model.dew_point_2m)}°`;
+      $('qnh').textContent = `QNH ${Math.round(model.pressure_msl)}`;
+      $('sky').textContent = `SKY ${skyFromCover(model.cloud_cover)} (${Math.round(model.cloud_cover)}%)`;
+    }
+
+    if (metar) {
+      setMetarLine('METAR', metar);
+    } else if (model) {
+      const now = new Date();
+      const stamp = `${pad(now.getUTCDate())}${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}Z`;
+      const dir = Math.round(model.wind_direction_10m / 10) * 10;
+      const kt = model.wind_speed_10m;
+      const wind = kt < 1 ? '00000KT' : `${pad(dir, 3)}${pad(kt)}KT`;
+      const t = (v) => (v < 0 ? 'M' : '') + pad(Math.abs(v));
+      setMetarLine('MODEL', `${STATION} ${stamp} ${wind} ${skyFromCover(model.cloud_cover)} ${t(model.temperature_2m)}/${t(model.dew_point_2m)} Q${Math.round(model.pressure_msl)}`);
+    } else {
+      setMetarLine('WX', 'weather unavailable');
+    }
+  }
+
+  update();
+  setInterval(update, REFRESH_MS);
 </script>
 </body>
 </html>

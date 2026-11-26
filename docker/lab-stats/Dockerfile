@@ -2,7 +2,7 @@
 FROM node:22.16.0-alpine3.22
 
 ENV NODE_ENV=production
-ENV NODE_EXTRA_CA_CERTS=/certs/pve-ca.pem
+ENV NODE_EXTRA_CA_CERTS=/certs/ca-bundle.pem
 
 WORKDIR /app
 

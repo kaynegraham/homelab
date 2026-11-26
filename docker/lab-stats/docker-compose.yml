@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./certs/pve-ca.pem:/certs/pve-ca.pem:ro
+      - ./certs/ca-bundle.pem:/certs/ca-bundle.pem:ro
     read_only: true
     tmpfs:
       - /tmp

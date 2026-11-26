@@ -15,7 +15,10 @@ const config = {
   kumaUrl: process.env.KUMA_URL,
   kumaSlug: process.env.KUMA_SLUG,
   piholeUrl: process.env.PIHOLE_URL,
-  piholePassword: process.env.PIHOLE_PASSWORD
+  piholePassword: process.env.PIHOLE_PASSWORD,
+  portainerUrl: process.env.PORTAINER_URL,
+  portainerEndpointId: process.env.PORTAINER_ENDPOINT_ID,
+  portainerApiKey: process.env.PORTAINER_API_KEY
 };
 
 const required = Object.entries(config);
@@ -202,6 +205,33 @@ async function getPiHole() {
   };
 }
 
+async function getDocker() {
+  const url =
+    `${config.portainerUrl}/api/endpoints/` +
+    `${encodeURIComponent(config.portainerEndpointId)}/docker/containers/json?all=1`;
+
+  const containers = await getJson(url, {
+    headers: {
+      'X-API-Key': config.portainerApiKey
+    }
+  });
+
+  if (!Array.isArray(containers)) {
+    throw new Error('Unexpected Portainer response');
+  }
+
+  const running = containers.filter(
+    container => container.State === 'running'
+  ).length;
+
+  return {
+    ok: true,
+    running,
+    total: containers.length,
+    stopped: containers.length - running
+  };
+}
+
 async function safeSource(name, getter, fallback) {
   try {
     return await getter();
@@ -212,7 +242,7 @@ async function safeSource(name, getter, fallback) {
 }
 
 async function refreshStats() {
-  const [proxmox, kuma, pihole] = await Promise.all([
+  const [proxmox, kuma, pihole,docker] = await Promise.all([
     safeSource('Proxmox', getProxmox, {
       ok: false,
       cpu: 0,
@@ -233,6 +263,12 @@ async function refreshStats() {
       queries: 0,
       blocked: 0,
       percentBlocked: 0
+    }),
+     safeSource('Portainer', getDocker, {
+      ok: false,
+      running: 0,
+      total: 0,
+      stopped: 0
     })
   ]);
 
@@ -240,7 +276,8 @@ async function refreshStats() {
     updated: new Date().toISOString(),
     proxmox,
     kuma,
-    pihole
+    pihole,
+    docker
   };
 
   cacheTime = Date.now();

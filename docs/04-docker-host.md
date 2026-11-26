@@ -266,7 +266,7 @@ The first version of the compose file had the encryption key pasted in, which wo
 1. Generating a new key with `openssl rand -hex 32`, since the old one had been in a screenshot.
 2. Putting it in `docker/homarr/.env`. Compose reads `.env` from the folder you run it in.
 3. Referencing it in the compose file as `${SECRET_ENCRYPTION_KEY}`.
-4. Adding `docker/.gitignore`:
+4. Adding `.gitignore` (repo root):
 
 ```
 **/.env
@@ -321,6 +321,65 @@ To do: app tiles for each service, Pi-hole stats once it's built.
 
 **Why:** Homarr's clock widget is digital only. I wanted an analog face with a 24-hour digital readout, so I wrote a small HTML page and served it from its own container, then embedded it in Homarr with an iFrame widget.
 
+**Update: aviation version.** The clock now doubles as a weather panel for Jandakot (YPJT):
+
+- Analog local time, plus 24-hour local time and UTC (Zulu), the way pilots read it
+- Wind, temperature, dewpoint, QNH and cloud cover in aviation units (knots, hPa)
+- A blue marker on the clock bezel showing where the wind is coming from
+- Live METARs along the bottom, one line per airport. If a METAR can't be fetched, it falls back to a METAR-style line built from Open-Meteo model data, labelled MODEL so it's never mistaken for an official observation.
+- Refreshes every 10 minutes, and the drawing resizes itself to fill whatever size the iFrame is.
+
+Not for flight planning.
+
+![Clock with YPJT and YPPH](images/clock-ypjt.png)
+
+#### Configuration in the URL
+
+| Parameter | Example | What it does |
+|---|---|---|
+| `airports` | `?airports=YPJT,YPPH` | Up to 4 stations. The first fills the main display, each gets its own METAR line. |
+| `rotate` | `&rotate=15` | Cycle the main display between airports every 15 seconds |
+| `demo` | `?demo=1` | Sample data, for layout testing |
+
+Airports with known coordinates (for the wind and temperature readout): YPJT, YPPH, YPEA, YPMR, YPKG, YPPD, YPKA, YPBO. Any other ICAO code still gets a METAR line.
+
+Homarr iFrame URL: `https://clock.twilight.goaround.lol/?airports=YPJT,YPPH`
+
+#### Fetching METARs through nginx
+
+The first version fetched METARs straight from aviationweather.gov in the browser, and it always fell back to MODEL. The site doesn't send CORS headers, so the browser blocks the response.
+
+Fix: nginx in the clock container proxies one path to aviationweather.gov, so the browser only ever talks to the clock's own address.
+
+```nginx
+location = /metar {
+    limit_except GET { deny all; }
+    proxy_pass https://aviationweather.gov/api/data/metar;
+    proxy_set_header Host aviationweather.gov;
+    proxy_ssl_server_name on;
+    proxy_ssl_verify on;
+    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+    add_header Cache-Control "max-age=300";
+}
+```
+
+| Choice | Why |
+|---|---|
+| `location = /metar` | Exact match only, so the proxy can't be used to reach anything else |
+| `limit_except GET` | Read-only |
+| `proxy_ssl_verify on` | nginx checks aviationweather.gov's certificate rather than trusting anything |
+| `Cache-Control` | Browsers reuse a METAR for 5 minutes |
+
+The config lives in `docker/clock/nginx/default.conf` and is mounted read-only. The compose file gained one line:
+
+```yaml
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+```
+
+Applied with `docker compose up -d --force-recreate`, checked with `docker exec clock nginx -t`.
+
+Also: Homarr now loads over HTTPS, so the iFrame has to use `https://clock.twilight.goaround.lol`. An `http://` iFrame inside an HTTPS page is blocked as mixed content.
+
 ### The page
 
 `docker/clock/html/index.html` is a single file: an SVG clock face drawn in a 100 x 116 viewBox, with JavaScript moving the hands.
@@ -347,6 +406,7 @@ services:
       - "8081:80"
     volumes:
       - ./html:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
 ```
 
 | Choice | Why |
@@ -511,4 +571,4 @@ Real IP, `0.0.0.0` (blocked), then 10.10.99.20. "Server: UnKnown" in the output 
 
 ## Next
 
-05: Reverse proxy and HTTPS with a lab domain. That gets rid of the port numbers and the growing list of ports on the firewall rule.
+[05: Reverse proxy and HTTPS](05-reverse-proxy.md). Gets rid of the port numbers and the growing list of ports on the firewall rule.`

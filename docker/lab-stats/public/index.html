@@ -182,6 +182,71 @@ body {
 
 .seg { display: flex; gap: 2px; }
 
+.label .count {
+  margin-left: 5px;
+  font-family: var(--mono);
+  letter-spacing: 0;
+  color: #fff;
+}
+
+.list-body { justify-content: flex-start; padding-top: 6px; }
+
+.guests {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3px, 4cqh, 6px);
+}
+
+.guests li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: clamp(9px, 9cqh, 12px);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.guests .g-dot {
+  flex: 0 0 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.guests .on .g-dot { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.guests .unknown .g-dot { background: var(--amber); }
+
+.guests .g-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.guests .on .g-name { color: #fff; }
+
+.guests .g-meta {
+  display: none;
+  font-size: .8em;
+  color: var(--muted);
+}
+
+@container (min-width: 140px) {
+  .guests .g-meta { display: inline; }
+}
+
+.guests .more {
+  font-family: var(--sans);
+  font-size: .8em;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
 
 .seg i {
   flex: 1;
@@ -230,17 +295,13 @@ body {
   </div>
 
   <div class="tile" id="t-mem">
-    <div class="head"><span class="label">MEM</span><span class="dot"></span></div>
+    <div class="head"><span class="label">RAM</span><span class="dot"></span></div>
     <div class="body" data-gauge="mem" data-sub="-- / -- GB"></div>
   </div>
 
   <div class="tile info" id="t-vm">
-    <div class="head"><span class="label">VMS</span><span class="dot"></span></div>
-    <div class="body">
-      <div class="big" id="vm-big"><span id="vm-a">--</span><span class="den">/<span id="vm-b">--</span></span></div>
-      <div class="cap">RUNNING</div>
-      <div class="seg" id="vm-seg"></div>
-    </div>
+    <div class="head"><span class="label">GUESTS<span class="count" id="vm-count"></span></span><span class="dot"></span></div>
+    <div class="body list-body" id="vm-body"><ul class="guests" id="vm-list"></ul></div>
   </div>
 
   <div class="tile" id="t-kuma">
@@ -406,29 +467,80 @@ function ratioNA(prefix, tileId, segId) {
   if (segId) segments(segId, 0, 0);
 }
 
+let lastGuests = [];
+
+function renderGuests(guests) {
+  const list = $('vm-list');
+  lastGuests = guests;
+
+  if (!guests) {
+    list.innerHTML = '<li><span class="more">NO GUEST LIST</span></li>';
+    return;
+  }
+
+  if (!guests.length) {
+    list.innerHTML = '<li><span class="more">N/A</span></li>';
+    return;
+  }
+
+  const row = g => {
+    const state = g.status === 'running' ? 'on' : g.status === 'unknown' ? 'unknown' : '';
+    const li = document.createElement('li');
+    li.className = state;
+    li.innerHTML = '<span class="g-dot"></span><span class="g-name"></span><span class="g-meta"></span>';
+    li.children[1].textContent = String(g.name ?? g.vmid ?? '?').toUpperCase();
+    li.children[2].textContent = `${g.type === 'lxc' ? 'CT' : 'VM'} ${g.node ?? ''}`.toUpperCase().trim();
+    return li;
+  };
+
+  list.replaceChildren(...guests.map(row));
+
+  const body = $('vm-body');
+  let shown = guests.length;
+
+  while (shown > 1 && list.scrollHeight > body.clientHeight - 6) {
+    shown--;
+    list.replaceChildren(...guests.slice(0, shown).map(row), moreRow(guests.length - shown));
+  }
+}
+
+function moreRow(n) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="more">+${n} MORE</span>`;
+  return li;
+}
+
+addEventListener('resize', () => renderGuests(lastGuests));
+
 function update(d) {
   const pve = d.proxmox;
 
   if (pve?.ok) {
     const cpu = (Number(pve.cpu) || 0) * 100;
-    setState('t-cpu', limitState(cpu));
-    setGauge('cpu', cpu);
+    const nodesUp = Number(pve.nodesOnline);
+    const nodesAll = Number(pve.nodesTotal);
+    const hasNodes = Number.isFinite(nodesUp) && nodesAll > 0;
+    const nodeDown = hasNodes && nodesUp < nodesAll;
+    setState('t-cpu', nodeDown ? 'warning' : limitState(cpu));
+    setGauge('cpu', cpu, hasNodes ? `${nodesUp}/${nodesAll} NODES` : 'LOAD');
 
     const used = Number(pve.memUsed) || 0;
     const total = Number(pve.memTotal) || 0;
     const mem = total ? used / total * 100 : 0;
     setState('t-mem', limitState(mem));
-    setGauge('mem', mem, `${gb(used)} / ${gb(total)} GB`);
+    setGauge('mem', mem, `${gb(used)}/${gb(total)} GB`);
 
-    const run = Number(pve.vmsRunning) || 0;
-    const all = Number(pve.vmsTotal) || 0;
-    ratio('vm', 't-vm', 'info', run, all);
-    segments('vm-seg', all, run);
+    setState('t-vm', 'info');
+    $('vm-count').textContent = `${Number(pve.vmsRunning) || 0}/${Number(pve.vmsTotal) || 0}`;
+    renderGuests(Array.isArray(pve.guests) ? pve.guests : null);
   } else {
     gaugeNA('cpu', 't-cpu');
     gaugeNA('mem', 't-mem');
+    $('cpu-sub').textContent = 'NO DATA';
     $('mem-sub').textContent = 'NO DATA';
-    ratioNA('vm', 't-vm', 'vm-seg');
+    setState('t-vm', 'na');
+    $('vm-count').textContent = '';
+    renderGuests([]);
   }
 
   const kuma = d.kuma;
@@ -509,19 +621,19 @@ const jitter = (v, amount) => v + (Math.random() - .5) * amount;
 
 const scenarios = [
   () => ({
-    proxmox: { ok: true, cpu: jitter(.004, .004), memUsed: 5.3 * GB, memTotal: 7.6 * GB, vmsRunning: 1, vmsTotal: 2 },
+    proxmox: { ok: true, cpu: jitter(.04, .02), memUsed: 13.4 * GB, memTotal: 31.2 * GB, nodesOnline: 2, nodesTotal: 2, vmsRunning: 2, vmsTotal: 3, guests: [{ name: 'docker01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'dc02', type: 'qemu', status: 'running', node: 'pve02' }, { name: 'dc01', type: 'qemu', status: 'stopped', node: 'pve01' }] },
     kuma: { ok: true, up: 4, total: 4, uptime24h: .9987 },
     pihole: { ok: true, queries: Math.round(jitter(15800, 400)), blocked: 120, percentBlocked: .0076, cached: 9900, gravity: 186000 },
     docker: { ok: true, running: 7, total: 7, stopped: 0 }
   }),
   () => ({
-    proxmox: { ok: true, cpu: jitter(.78, .06), memUsed: 6.3 * GB, memTotal: 7.6 * GB, vmsRunning: 2, vmsTotal: 2 },
+    proxmox: { ok: true, cpu: jitter(.78, .06), memUsed: 24.1 * GB, memTotal: 31.2 * GB, nodesOnline: 2, nodesTotal: 2, vmsRunning: 5, vmsTotal: 7, guests: [{ name: 'docker01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'dc01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'dc02', type: 'qemu', status: 'running', node: 'pve02' }, { name: 'win11-01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'pbs', type: 'lxc', status: 'running', node: 'pve02' }, { name: 'win11-02', type: 'qemu', status: 'stopped', node: 'pve01' }, { name: 'test-ct', type: 'lxc', status: 'stopped', node: 'pve02' }] },
     kuma: { ok: true, up: 4, total: 4, uptime24h: .9941 },
     pihole: { ok: true, queries: 16420, blocked: 2380, percentBlocked: .145, cached: 10400, gravity: 186000 },
     docker: { ok: true, running: 6, total: 7, stopped: 1 }
   }),
   () => ({
-    proxmox: { ok: true, cpu: jitter(.95, .04), memUsed: 7.2 * GB, memTotal: 7.6 * GB, vmsRunning: 2, vmsTotal: 2 },
+    proxmox: { ok: true, cpu: jitter(.35, .04), memUsed: 22.1 * GB, memTotal: 23.4 * GB, nodesOnline: 1, nodesTotal: 2, vmsRunning: 2, vmsTotal: 3, guests: [{ name: 'docker01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'dc01', type: 'qemu', status: 'running', node: 'pve01' }, { name: 'dc02', type: 'qemu', status: 'unknown', node: 'pve02' }] },
     kuma: { ok: true, up: 3, total: 4, uptime24h: .9612 },
     pihole: { ok: true, queries: 1284000, blocked: 301000, percentBlocked: .234, cached: 700000, gravity: 0 },
     docker: { ok: true, running: 5, total: 7, stopped: 2 }

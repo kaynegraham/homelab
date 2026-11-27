@@ -56,39 +56,48 @@ async function getJson(url, options = {}) {
 }
 
 async function getProxmox() {
-  const headers = {
-    Authorization: pveAuth
-  };
+  const resources = await getJson(`${config.pveUrl}/api2/json/cluster/resources`, {
+    headers: { Authorization: pveAuth }
+  });
 
-  const [node, resources] = await Promise.all([
-    getJson(
-      `${config.pveUrl}/api2/json/nodes/${encodeURIComponent(config.pveNode)}/status`,
-      { headers }
-    ),
-    getJson(
-      `${config.pveUrl}/api2/json/cluster/resources?type=vm`,
-      { headers }
-    )
-  ]);
+  const all = resources.data;
 
-  const status = node.data;
-  const vms = resources.data;
-
-  if (!status || !Array.isArray(vms)) {
+  if (!Array.isArray(all)) {
     throw new Error('Unexpected Proxmox response');
   }
 
-  const nodeVms = vms.filter(vm => vm.type === 'qemu' || vm.type === 'lxc');
-  const running = nodeVms.filter(vm => vm.status === 'running');
+  const sum = (list, key) => list.reduce((total, item) => total + (Number(item[key]) || 0), 0);
+
+  const nodes = all.filter(item => item.type === 'node');
+  const online = nodes.filter(node => node.status === 'online');
+  const cores = sum(online, 'maxcpu');
+
+  const guests = all
+    .filter(item => (item.type === 'qemu' || item.type === 'lxc') && !item.template)
+    .map(guest => ({
+      vmid: guest.vmid,
+      name: guest.name,
+      type: guest.type,
+      status: guest.status,
+      node: guest.node
+    }))
+    .sort((a, b) =>
+      (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) ||
+      String(a.name).localeCompare(String(b.name)));
 
   return {
     ok: true,
-    cpu: status.cpu,
-    memUsed: status.memory?.used ?? 0,
-    memTotal: status.memory?.total ?? 0,
-    vmsRunning: running.length,
-    vmsTotal: nodeVms.length,
-    uptime: status.uptime
+    cpu: cores
+      ? online.reduce((total, node) => total + (node.cpu || 0) * (node.maxcpu || 0), 0) / cores
+      : 0,
+    memUsed: sum(online, 'mem'),
+    memTotal: sum(online, 'maxmem'),
+    nodesOnline: online.length,
+    nodesTotal: nodes.length,
+    vmsRunning: guests.filter(guest => guest.status === 'running').length,
+    vmsTotal: guests.length,
+    guests,
+    uptime: Math.max(0, ...online.map(node => node.uptime || 0))
   };
 }
 

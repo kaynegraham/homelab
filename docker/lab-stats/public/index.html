@@ -1,57 +1,562 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lab Stats</title>
+<meta name="color-scheme" content="dark">
+<title>KG Tech Lab Stats</title>
 <style>
-:root{color-scheme:dark;--bg:#09121c;--panel:#101d2a;--line:#203347;--muted:#8194a8;--text:#edf5fc}
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
-.dashboard{width:100%;height:100%;padding:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:5px}
-.tile{--accent:#38bdf8;min-width:0;min-height:0;position:relative;overflow:hidden;background:linear-gradient(145deg,#142334,#0e1925);border:1px solid var(--line);border-radius:7px;padding:7px 8px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:3px}
-.tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-.cpu{--accent:#36c5f0}.ram{--accent:#a78bfa}.vms{--accent:#60a5fa}.kuma{--accent:#4ade80}.pihole{--accent:#fbbf24}.docker{--accent:#fb923c}
-.top{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0}
-.label{font-size:clamp(8px,2.4vw,10px);font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:#a9bbcd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dot{width:6px;height:6px;border-radius:50%;background:#64748b;flex:0 0 auto;box-shadow:0 0 7px currentColor;color:currentColor}
-.dot.good{background:#4ade80;color:#4ade80}.dot.warn{background:#fbbf24;color:#fbbf24}.dot.bad{background:#fb7185;color:#fb7185}
-.value{font-size:clamp(15px,5vw,23px);font-weight:800;line-height:1.05;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.detail{font-size:clamp(8px,2.2vw,10px);line-height:1.1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:10px}
-.track{height:7px;min-height:7px;width:100%;border-radius:99px;background:#26384a;overflow:hidden;margin-top:2px;box-shadow:inset 0 0 0 1px #31465a}
-.fill{height:100%;width:0%;min-width:0;border-radius:99px;background:var(--accent);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 55%,transparent);transition:width .45s ease}
-/* Keep the progress indicator visible in very short Homarr tiles. */
-@media(max-height:180px){.dashboard{padding:3px;gap:3px}.tile{padding:5px 6px 6px;gap:2px}.detail{display:none}.track{height:8px;min-height:8px}.value{font-size:clamp(14px,4.5vw,20px)}}
-@media(max-width:260px){.dashboard{gap:3px;padding:3px}.tile{padding:5px 5px 6px}.label{font-size:8px}.value{font-size:15px}.detail{font-size:8px}}
+:root {
+  color-scheme: dark;
+  --green: #51cf66;
+  --amber: #fcc419;
+  --red: #fa5252;
+  --cyan: #4dabf7;
+  --muted: #b4bec9;
+  --dim: rgba(255, 255, 255, 0.12);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  padding: 4px;
+  font-family: var(--sans);
+  color: #fff;
+}
+
+.panel {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr)) auto;
+  gap: 4px;
+}
+
+.tile {
+  --accent: var(--green);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 5px 7px 6px;
+  background: rgba(11, 26, 46, 0.72);
+  border: 1px solid rgba(77, 171, 247, 0.25);
+  border-radius: 5px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: opacity .4s ease;
+}
+
+.tile.caution { --accent: var(--amber); }
+.tile.warning { --accent: var(--red); }
+.tile.info { --accent: var(--cyan); }
+.tile.na { --accent: var(--red); opacity: .45; }
+
+.head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 5px var(--accent);
+  transition: background .4s, box-shadow .4s;
+}
+
+.tile.caution .dot,
+.tile.warning .dot,
+.tile.na .dot { animation: pulse 2.4s ease-in-out infinite; }
+
+@keyframes pulse {
+  50% { opacity: .25; box-shadow: none; }
+}
+
+.body {
+  flex: 1 1 0;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.gauge {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.gauge .trk { stroke: var(--dim); }
+.gauge .val { stroke: var(--accent); transition: stroke-dashoffset .8s ease, stroke .4s; }
+.gauge .ptr {
+  stroke: #fff;
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  transition: transform .8s ease;
+}
+.gauge .gv { font-family: var(--mono); font-weight: 700; fill: #fff; }
+.gauge .gs { font-family: var(--sans); font-weight: 700; fill: var(--muted); letter-spacing: .6px; }
+
+.big {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: clamp(16px, min(36cqh, 24cqw), 40px);
+  line-height: 1;
+  letter-spacing: -.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.big .den, .big .unit { font-size: .6em; color: var(--muted); }
+.big .unit { margin-left: 2px; font-size: .45em; letter-spacing: .5px; }
+.big.na-val .den { display: none; }
+
+.cap {
+  margin-top: 4px;
+  font-size: clamp(8px, 11cqh, 11px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cap .wide { display: none; }
+
+@container (min-width: 150px) {
+  .cap .wide { display: inline; }
+}
+
+.cap.alert { color: var(--accent); }
+
+.cap b {
+  font-family: var(--mono);
+  color: #fff;
+  letter-spacing: 0;
+}
+
+.track, .seg {
+  flex: 0 0 3px;
+  height: 3px;
+  margin-top: clamp(4px, 9cqh, 9px);
+}
+
+.track {
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--dim);
+}
+
+.track .fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width .8s ease, background .4s;
+}
+
+.seg { display: flex; gap: 2px; }
+
+
+.seg i {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--dim);
+  transition: background .4s;
+}
+
+.seg i.on { background: var(--accent); }
+
+.foot {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 2px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  line-height: 1;
+  letter-spacing: .5px;
+  color: var(--muted);
+}
+
+.foot .lost { color: var(--red); }
+
+@media (max-aspect-ratio: 1/1) {
+  .panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr)) auto;
+  }
+}
+
+@media (max-height: 260px) {
+  body { padding: 3px; }
+  .panel { gap: 3px; }
+  .tile { padding: 4px 6px 5px; }
+}
 </style>
 </head>
 <body>
-<main class="dashboard">
- <section class="tile cpu"><div class="top"><span class="label">CPU LOAD</span><i class="dot" id="cpu-indicator"></i></div><div class="value" id="cpu-value">--%</div><div class="detail">Proxmox processor</div><div class="track"><div class="fill" id="cpu-bar"></div></div></section>
- <section class="tile ram"><div class="top"><span class="label">MEMORY</span><i class="dot" id="ram-indicator"></i></div><div class="value" id="ram-value">--%</div><div class="detail" id="ram-detail">-- / -- GB used</div><div class="track"><div class="fill" id="ram-bar"></div></div></section>
- <section class="tile vms"><div class="top"><span class="label">VIRTUAL MACHINES</span><i class="dot" id="vm-indicator"></i></div><div class="value" id="vm-value">-- / --</div><div class="detail">VMs running</div><div class="track"><div class="fill" id="vm-bar"></div></div></section>
- <section class="tile kuma"><div class="top"><span class="label">UPTIME KUMA</span><i class="dot" id="kuma-indicator"></i></div><div class="value" id="kuma-value">-- / --</div><div class="detail">Services online</div><div class="track"><div class="fill" id="kuma-bar"></div></div></section>
- <section class="tile pihole"><div class="top"><span class="label">PI-HOLE QUERIES</span><i class="dot" id="pihole-indicator"></i></div><div class="value" id="pihole-value">--</div><div class="detail" id="pihole-detail">-- blocked</div><div class="track"><div class="fill" id="pihole-bar"></div></div></section>
- <section class="tile docker"><div class="top"><span class="label">DOCKER</span><i class="dot" id="docker-indicator"></i></div><div class="value" id="docker-value">-- / --</div><div class="detail" id="docker-detail">Containers running</div><div class="track"><div class="fill" id="docker-bar"></div></div></section>
-</main>
+<div class="panel">
+
+  <div class="tile" id="t-cpu">
+    <div class="head"><span class="label">CPU</span><span class="dot"></span></div>
+    <div class="body" data-gauge="cpu" data-sub="LOAD"></div>
+  </div>
+
+  <div class="tile" id="t-mem">
+    <div class="head"><span class="label">MEM</span><span class="dot"></span></div>
+    <div class="body" data-gauge="mem" data-sub="-- / -- GB"></div>
+  </div>
+
+  <div class="tile info" id="t-vm">
+    <div class="head"><span class="label">VMS</span><span class="dot"></span></div>
+    <div class="body">
+      <div class="big" id="vm-big"><span id="vm-a">--</span><span class="den">/<span id="vm-b">--</span></span></div>
+      <div class="cap">RUNNING</div>
+      <div class="seg" id="vm-seg"></div>
+    </div>
+  </div>
+
+  <div class="tile" id="t-kuma">
+    <div class="head"><span class="label">KUMA</span><span class="dot"></span></div>
+    <div class="body">
+      <div class="big" id="kuma-big"><span id="kuma-a">--</span><span class="den">/<span id="kuma-b">--</span></span></div>
+      <div class="cap">UP · 24H <b id="kuma-up">--</b></div>
+      <div class="seg" id="kuma-seg"></div>
+    </div>
+  </div>
+
+  <div class="tile info" id="t-dns">
+    <div class="head"><span class="label">DNS</span><span class="dot"></span></div>
+    <div class="body">
+      <div class="big" id="dns-big"><span id="dns-a">--</span><span class="unit" id="dns-unit"></span></div>
+      <div class="cap" id="dns-cap">--</div>
+      <div class="track"><div class="fill" id="dns-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="tile" id="t-docker">
+    <div class="head"><span class="label">DOCKER</span><span class="dot"></span></div>
+    <div class="body">
+      <div class="big" id="docker-big"><span id="docker-a">--</span><span class="den">/<span id="docker-b">--</span></span></div>
+      <div class="cap" id="docker-cap">RUNNING</div>
+      <div class="seg" id="docker-seg"></div>
+    </div>
+  </div>
+
+  <div class="foot"><span id="link"></span><span id="upd">UPD --:--Z</span></div>
+</div>
+
 <script>
-const $=id=>document.getElementById(id);
-const pct=(n,d)=>d>0?Math.max(0,Math.min(100,(n/d)*100)):0;
-const setBar=(id,value)=>{$(id).style.width=Math.max(0,Math.min(100,Number(value)||0))+'%'};
-const setDot=(id,state)=>{$(id).className='dot '+(state||'')};
-const fmtGB=n=>(n/1073741824).toFixed(1);
-function unavailable(prefix,detail){$(prefix+'-value').textContent='N/A';setDot(prefix+'-indicator','bad');const el=$(prefix+'-detail');if(el&&detail)el.textContent=detail;const bar=$(prefix+'-bar');if(bar)bar.style.width='0%'}
-async function refresh(){
- try{
-  const response=await fetch('/api/stats',{cache:'no-store'});if(!response.ok)throw new Error('API '+response.status);const d=await response.json();
-  if(d.proxmox?.ok){const cpu=(d.proxmox.cpu||0)*100;const mem=pct(d.proxmox.memUsed,d.proxmox.memTotal);$('cpu-value').textContent=cpu.toFixed(0)+'%';setBar('cpu-bar',cpu);setDot('cpu-indicator',cpu>=90?'warn':'good');$('ram-value').textContent=mem.toFixed(0)+'%';$('ram-detail').textContent=fmtGB(d.proxmox.memUsed)+' / '+fmtGB(d.proxmox.memTotal)+' GB used';setBar('ram-bar',mem);setDot('ram-indicator',mem>=90?'warn':'good');$('vm-value').textContent=(d.proxmox.vmsRunning??0)+' / '+(d.proxmox.vmsTotal??0);setBar('vm-bar',pct(d.proxmox.vmsRunning,d.proxmox.vmsTotal));setDot('vm-indicator','good')}
-  else{unavailable('cpu');unavailable('ram');unavailable('vm')}
-  if(d.kuma?.ok){const up=d.kuma.up??0,total=d.kuma.total??0;$('kuma-value').textContent=up+' / '+total;$('kuma-bar').style.width=pct(up,total)+'%';setDot('kuma-indicator',up===total?'good':'warn') }else unavailable('kuma');
-  if(d.pihole?.ok){$('pihole-value').textContent=Number(d.pihole.queries||0).toLocaleString();$('pihole-detail').textContent=Number(d.pihole.blocked||0).toLocaleString()+' blocked · '+Number(d.pihole.percentBlocked||0).toFixed(1)+'%';setBar('pihole-bar',100);setDot('pihole-indicator','good')}else unavailable('pihole');
-  if(d.docker?.ok){const run=d.docker.running??0,total=d.docker.total??0;$('docker-value').textContent=run+' / '+total;$('docker-detail').textContent=(d.docker.stopped??0)+' stopped';setBar('docker-bar',pct(run,total));setDot('docker-indicator',run===total?'good':'warn')}else unavailable('docker');
- }catch(e){['cpu','ram','vm','kuma','pihole','docker'].forEach(p=>unavailable(p,'API unavailable'))}
+const API_URL = '/api/stats';
+const DEMO = new URLSearchParams(location.search).has('demo');
+const MAX_SEGMENTS = 24;
+const $ = id => document.getElementById(id);
+
+const point = (a, r) => {
+  const t = a * Math.PI / 180;
+  return `${(50 + r * Math.sin(t)).toFixed(2)} ${(50 - r * Math.cos(t)).toFixed(2)}`;
+};
+
+const angle = f => -120 + 240 * f;
+
+const arc = (f0, f1, r) => {
+  const a0 = angle(f0);
+  const a1 = angle(f1);
+  return `M${point(a0, r)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${point(a1, r)}`;
+};
+
+function buildGauge(el) {
+  const key = el.dataset.gauge;
+  const bands = [[0, .7, 'var(--green)'], [.7, .9, 'var(--amber)'], [.9, 1, 'var(--red)']]
+    .map(([a, b, c]) => `<path d="${arc(a, b, 44)}" stroke="${c}" stroke-width="2" fill="none" opacity=".75"/>`)
+    .join('');
+  const ticks = [0, .25, .5, .75, 1]
+    .map(f => `<line x1="50" y1="3" x2="50" y2="9" stroke="rgba(255,255,255,.4)" stroke-width=".8" transform="rotate(${angle(f)} 50 50)"/>`)
+    .join('');
+
+  el.innerHTML = `
+    <svg class="gauge" viewBox="0 3 100 72" preserveAspectRatio="xMidYMid meet">
+      ${bands}${ticks}
+      <path class="trk" d="${arc(0, 1, 36)}" stroke-width="6" fill="none"/>
+      <path class="val" id="${key}-arc" d="${arc(0, 1, 36)}" pathLength="100"
+        stroke-width="6" fill="none" stroke-dasharray="100 200" stroke-dashoffset="100"/>
+      <line class="ptr" id="${key}-ptr" x1="50" y1="20" x2="50" y2="8" stroke-width="1.6"
+        stroke-linecap="round" style="transform:rotate(-120deg)"/>
+      <text class="gv" id="${key}-val" x="50" y="55" text-anchor="middle" font-size="15">--</text>
+      <text class="gs" id="${key}-sub" x="50" y="67.5" text-anchor="middle" font-size="7.5">${el.dataset.sub}</text>
+    </svg>`;
 }
-refresh();setInterval(refresh,30000);
+
+document.querySelectorAll('[data-gauge]').forEach(buildGauge);
+
+const current = {};
+const frames = {};
+
+function tween(key, to, format) {
+  const el = $(key);
+  const from = current[key] ?? 0;
+  const start = performance.now();
+  current[key] = to;
+  cancelAnimationFrame(frames[key]);
+
+  const step = now => {
+    const k = Math.min(1, (now - start) / 700);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = format(from + (to - from) * eased);
+    if (k < 1) frames[key] = requestAnimationFrame(step);
+  };
+
+  frames[key] = requestAnimationFrame(step);
+}
+
+function setText(key, text) {
+  cancelAnimationFrame(frames[key]);
+  current[key] = 0;
+  $(key).textContent = text;
+}
+
+function setState(tileId, state) {
+  $(tileId).className = `tile ${state}`;
+}
+
+const int = v => String(Math.round(v));
+const pct1 = v => `${v.toFixed(1)}%`;
+const gb = bytes => (bytes / 1073741824).toFixed(1);
+const clamp = v => Math.max(0, Math.min(100, Number(v) || 0));
+
+function compact(n) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e4) return `${(n / 1e3).toFixed(1)}K`;
+  return Math.round(n).toLocaleString('en-AU');
+}
+
+const limitState = p => p >= 90 ? 'warning' : p >= 70 ? 'caution' : '';
+
+function setGauge(key, percent, sub) {
+  const p = clamp(percent);
+  $(`${key}-arc`).style.strokeDashoffset = 100 - p;
+  $(`${key}-ptr`).style.transform = `rotate(${angle(p / 100)}deg)`;
+  tween(`${key}-val`, p, pct1);
+  if (sub) $(`${key}-sub`).textContent = sub;
+}
+
+function gaugeNA(key, tileId) {
+  setState(tileId, 'na');
+  $(`${key}-arc`).style.strokeDashoffset = 100;
+  $(`${key}-ptr`).style.transform = 'rotate(-120deg)';
+  setText(`${key}-val`, 'N/A');
+}
+
+function segments(id, total, on) {
+  const el = $(id);
+  const count = Math.min(total, MAX_SEGMENTS);
+
+  if (total > MAX_SEGMENTS) {
+    el.innerHTML = `<i class="on" style="flex:${on}"></i><i style="flex:${total - on}"></i>`;
+    el.dataset.n = '';
+    return;
+  }
+
+  if (el.dataset.n !== String(count)) {
+    el.innerHTML = '<i></i>'.repeat(count);
+    el.dataset.n = count;
+  }
+
+  [...el.children].forEach((seg, i) => seg.classList.toggle('on', i < on));
+}
+
+function ratio(prefix, tileId, state, a, b) {
+  setState(tileId, state);
+  $(`${prefix}-big`).classList.remove('na-val');
+  tween(`${prefix}-a`, a, int);
+  $(`${prefix}-b`).textContent = b;
+}
+
+function ratioNA(prefix, tileId, segId) {
+  setState(tileId, 'na');
+  $(`${prefix}-big`).classList.add('na-val');
+  setText(`${prefix}-a`, 'N/A');
+  if (segId) segments(segId, 0, 0);
+}
+
+function update(d) {
+  const pve = d.proxmox;
+
+  if (pve?.ok) {
+    const cpu = (Number(pve.cpu) || 0) * 100;
+    setState('t-cpu', limitState(cpu));
+    setGauge('cpu', cpu);
+
+    const used = Number(pve.memUsed) || 0;
+    const total = Number(pve.memTotal) || 0;
+    const mem = total ? used / total * 100 : 0;
+    setState('t-mem', limitState(mem));
+    setGauge('mem', mem, `${gb(used)} / ${gb(total)} GB`);
+
+    const run = Number(pve.vmsRunning) || 0;
+    const all = Number(pve.vmsTotal) || 0;
+    ratio('vm', 't-vm', 'info', run, all);
+    segments('vm-seg', all, run);
+  } else {
+    gaugeNA('cpu', 't-cpu');
+    gaugeNA('mem', 't-mem');
+    $('mem-sub').textContent = 'NO DATA';
+    ratioNA('vm', 't-vm', 'vm-seg');
+  }
+
+  const kuma = d.kuma;
+
+  if (kuma?.ok) {
+    const up = Number(kuma.up) || 0;
+    const total = Number(kuma.total) || 0;
+    const allUp = total > 0 && up === total;
+    ratio('kuma', 't-kuma', allUp ? '' : 'warning', up, total);
+    segments('kuma-seg', total, up);
+
+    // uptime24h arrives as a 0-1 fraction; 0 means Kuma sent nothing usable
+    const u = Number(kuma.uptime24h) || 0;
+    $('kuma-up').textContent = u ? pct1(u > 1 ? u : u * 100) : '--';
+  } else {
+    ratioNA('kuma', 't-kuma', 'kuma-seg');
+    $('kuma-up').textContent = '--';
+  }
+
+  const dns = d.pihole;
+
+  if (dns?.ok) {
+    const queries = Number(dns.queries) || 0;
+    const blocked = pct1(clamp((Number(dns.percentBlocked) || 0) * 100));
+    const noBlocklist = dns.gravity === 0;
+    const cachePct = dns.cached != null && queries ? dns.cached / queries * 100 : null;
+
+    setState('t-dns', noBlocklist ? 'caution' : 'info');
+    tween('dns-a', queries, compact);
+    $('dns-unit').textContent = '24H';
+
+    const detail = cachePct != null
+      ? `CACHE <b>${Math.round(cachePct)}%</b><span class="wide"> · BLK <b>${blocked}</b></span>`
+      : `BLOCKED <b>${blocked}</b>`;
+
+    $('dns-cap').classList.toggle('alert', noBlocklist);
+    $('dns-cap').innerHTML = noBlocklist ? 'NO LISTS' : detail;
+    $('dns-fill').style.width = `${cachePct ?? clamp(dns.percentBlocked * 100)}%`;
+  } else {
+    setState('t-dns', 'na');
+    setText('dns-a', 'N/A');
+    $('dns-unit').textContent = '';
+    $('dns-cap').classList.remove('alert');
+    $('dns-cap').textContent = 'NO DATA';
+    $('dns-fill').style.width = '0';
+  }
+
+  const docker = d.docker;
+
+  if (docker?.ok) {
+    const run = Number(docker.running) || 0;
+    const total = Number(docker.total) || 0;
+    const stopped = Number(docker.stopped) || 0;
+    const healthy = total > 0 && stopped === 0 && run === total;
+    ratio('docker', 't-docker', healthy ? '' : 'caution', run, total);
+    segments('docker-seg', total, run);
+    $('docker-cap').textContent = stopped ? `${stopped} STOPPED` : 'RUNNING';
+    $('docker-cap').classList.toggle('alert', stopped > 0);
+  } else {
+    ratioNA('docker', 't-docker', 'docker-seg');
+    $('docker-cap').textContent = 'RUNNING';
+    $('docker-cap').classList.remove('alert');
+  }
+
+  const t = d.updated ? new Date(d.updated) : new Date();
+  const hh = String(t.getUTCHours()).padStart(2, '0');
+  const mm = String(t.getUTCMinutes()).padStart(2, '0');
+  $('upd').textContent = `UPD ${hh}:${mm}Z`;
+  $('link').textContent = '';
+}
+
+function linkLost() {
+  update({});
+  $('link').innerHTML = '<span class="lost">LINK LOST</span>';
+}
+
+const GB = 1073741824;
+const jitter = (v, amount) => v + (Math.random() - .5) * amount;
+
+const scenarios = [
+  () => ({
+    proxmox: { ok: true, cpu: jitter(.004, .004), memUsed: 5.3 * GB, memTotal: 7.6 * GB, vmsRunning: 1, vmsTotal: 2 },
+    kuma: { ok: true, up: 4, total: 4, uptime24h: .9987 },
+    pihole: { ok: true, queries: Math.round(jitter(15800, 400)), blocked: 120, percentBlocked: .0076, cached: 9900, gravity: 186000 },
+    docker: { ok: true, running: 7, total: 7, stopped: 0 }
+  }),
+  () => ({
+    proxmox: { ok: true, cpu: jitter(.78, .06), memUsed: 6.3 * GB, memTotal: 7.6 * GB, vmsRunning: 2, vmsTotal: 2 },
+    kuma: { ok: true, up: 4, total: 4, uptime24h: .9941 },
+    pihole: { ok: true, queries: 16420, blocked: 2380, percentBlocked: .145, cached: 10400, gravity: 186000 },
+    docker: { ok: true, running: 6, total: 7, stopped: 1 }
+  }),
+  () => ({
+    proxmox: { ok: true, cpu: jitter(.95, .04), memUsed: 7.2 * GB, memTotal: 7.6 * GB, vmsRunning: 2, vmsTotal: 2 },
+    kuma: { ok: true, up: 3, total: 4, uptime24h: .9612 },
+    pihole: { ok: true, queries: 1284000, blocked: 301000, percentBlocked: .234, cached: 700000, gravity: 0 },
+    docker: { ok: true, running: 5, total: 7, stopped: 2 }
+  }),
+  () => ({
+    proxmox: { ok: false },
+    kuma: { ok: true, up: 4, total: 4, uptime24h: 0 },
+    pihole: { ok: false },
+    docker: { ok: true, running: 7, total: 7, stopped: 0 }
+  })
+];
+
+let demoStep = 0;
+
+
+async function refresh() {
+  if (DEMO) {
+    update({ ...scenarios[demoStep % scenarios.length](), updated: new Date().toISOString() });
+    demoStep++;
+    return;
+  }
+
+  try {
+    const response = await fetch(API_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    update(await response.json());
+  } catch (error) {
+    console.error('Lab stats:', error);
+    linkLost();
+  }
+}
+
+refresh();
+setInterval(refresh, DEMO ? 4000 : 30000);
 </script>
 </body>
 </html>

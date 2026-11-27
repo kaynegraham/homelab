@@ -16,9 +16,10 @@
 | FortiGate wan1 | 192.168.1.20 | Faces the home LAN |
 | Laptop | 192.168.1.120 | Static, management workstation |
 | FortiGate internal | 10.10.99.1 | Lab gateway |
-| pve01 | 10.10.99.2 | Proxmox host |
+| pve01 | 10.10.99.2 | Proxmox host, cluster `twilight` |
+| pve02 | 10.10.99.3 | Proxmox host, cluster `twilight`, see [06](06-pve02-cluster.md) |
 | DC01 | 10.10.99.11 | Domain controller, DNS |
-| DC02 | 10.10.99.12 | Planned |
+| DC02 | 10.10.99.12 | Planned, on pve02 |
 | docker01 | 10.10.99.20 | Ubuntu Server, Docker host, see [04](04-docker-host.md). lab-stats on 8083. |
 | Clients | 10.10.99.100 to 150 | Reserved for DHCP from DC01 later |
 
@@ -27,6 +28,14 @@ The FortiGate had a DHCP server running on `internal` (10.10.99.100 to 150). Tur
 ### FortiGate admin access on `internal`
 
 Only **PING** is enabled. FMG-Access, SSH and Security Fabric Connection were removed: the FortiGate is managed from `wan1` (192.168.1.20), so the lab side doesn't need management access. Least privilege.
+
+### `wan2`
+
+Set to static `0.0.0.0` and admin down. Plugging it into the home router let it pull a DHCP address that clashed with the Mac and added a second default route. See [06](06-pve02-cluster.md). Earmarked as an HA heartbeat port later.
+
+### `internal3`
+
+Only links at 100Mbps and was unreliable. Left unused.
 
 ## Firewall policies (FortiGate)
 
@@ -87,5 +96,5 @@ Tailscale runs on pve01 and advertises 10.10.99.0/24 as a subnet route. See [02]
 
 | Target | Address |
 |---|---|
-| Proxmox UI | https://pve01:8006 via Tailscale, or https://pve.twilight.goaround.lol on the home network |
+| Proxmox UI | https://pve01:8006 via Tailscale, or https://pve.twilight.goaround.lol / https://pve02.twilight.goaround.lol on the home network |
 | Lab machines | Their 10.10.99.x address via the subnet route |

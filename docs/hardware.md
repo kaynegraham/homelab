@@ -2,7 +2,7 @@
 
 [Back to README](../README.md)
 
-## Proxmox host (pve01)
+## pve01
 
 | Part | Spec |
 |---|---|
@@ -13,6 +13,26 @@
 | M.2 slot | Free, supports NVMe |
 | NIC | 1x onboard gigabit |
 | Boot mode | Legacy BIOS |
+
+## pve02
+
+| Part | Spec |
+|---|---|
+| Model | Desktop tower, Gigabyte H110 board |
+| CPU | Intel Core i5, 3.0GHz (6th/7th gen) |
+| RAM | 8GB DDR4 desktop |
+| Storage | 250GB Samsung 850 EVO SATA SSD |
+| M.2 slot | None |
+| NIC | 1x onboard gigabit |
+| Boot mode | UEFI |
+
+See [06](06-pve02-cluster.md). Takes the same RAM as pve01, so pve01's 2x4GB sticks move here after the upgrade.
+
+## Spare parts
+
+| Part | Notes |
+|---|---|
+| Samsung 960 EVO 250GB NVMe | Spare, not in use yet |
 
 ## Other gear
 

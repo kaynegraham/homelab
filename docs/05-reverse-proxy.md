@@ -72,7 +72,7 @@ services:
 |---|---|
 | Ports 80 and 443 | Kept free on purpose when Pi-hole and the others were set up |
 | Port 81 | NPM's admin UI |
-| `./letsencrypt` | Holds the certificates' **private keys**. Added `**/letsencrypt/` to `docker/.gitignore` before first start. |
+| `./letsencrypt` | Holds the certificates' **private keys**. Added `**/letsencrypt/` to `.gitignore` (repo root) before first start. |
 
 ## Certificates
 
@@ -108,7 +108,25 @@ Newer Pi-hole versions block setting `misc.dnsmasq_lines` from the web UI, so it
 
 Pi-hole's FTL engine reads any `FTLCONF_` environment variable at startup and applies it as a setting (dots become underscores: `misc.dnsmasq_lines` → `misc_dnsmasq_lines`). Settings from environment variables are locked in the UI. Bonus: the rule is now in Git.
 
-Cloudflare's public DNS has no lab records. These names only resolve on devices using Pi-hole.
+### Public DNS vs lab DNS
+
+`goaround.lol` is also used for other projects, published through a Cloudflare Tunnel with a public `*.goaround.lol` wildcard record. That wildcard only covers one level, so:
+
+| Name | Public DNS (Cloudflare) | Lab DNS (Pi-hole) |
+|---|---|---|
+| `app.goaround.lol` | Cloudflare Tunnel | n/a |
+| `twilight.goaround.lol` | Matched by the public wildcard unless it has its own record | 10.10.99.20 |
+| `kuma.twilight.goaround.lol` and other lab names | Doesn't exist | 10.10.99.20 |
+
+Lab services are never published publicly. A TXT record named `twilight` stops the bare name falling into the public wildcard (a wildcard only applies to names with no records of their own).
+
+### Devices not using Pi-hole
+
+Found when the Mac (DNS set to 1.1.1.1) couldn't reach any lab names: `nslookup` against 1.1.1.1 returned Cloudflare's IPs, against 10.10.99.20 returned the lab IP.
+
+Fix: **Tailscale split DNS**. In the Tailscale admin console, DNS > add nameserver `10.10.99.20`, restricted to `twilight.goaround.lol`. Any device on the tailnet asks Pi-hole for lab names and normal DNS for everything else, at home or away, and nothing breaks if Pi-hole is down. Works because of the 10.10.99.0/24 subnet route on pve01.
+
+macOS DNS cache flush: `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`
 
 ## Proxy hosts
 
@@ -120,6 +138,7 @@ All use the wildcard cert, Force SSL and HTTP/2. HSTS left off for now, since br
 | homarr | http | 10.10.99.20:7575 | ✅ | |
 | pihole | http | 10.10.99.20:8082 | | UI at `/admin` |
 | clock | http | 10.10.99.20:8081 | | |
+| stats | http | 10.10.99.20:8083 | | lab-stats panel |
 | npm | http | 10.10.99.20:81 | | NPM proxying its own admin UI |
 | portainer | **https** | 10.10.99.20:9443 | ✅ | Portainer only speaks HTTPS. Console needs websockets. |
 | pve | **https** | 10.10.99.2:8006 | ✅ | Proxmox only speaks HTTPS. noVNC console needs websockets. |
@@ -157,6 +176,13 @@ The individual web ports (3001, 7575, 8081, 8082, 9443) were removed only after 
 
 **Incident:** while editing the rule, DNS, SSH, PING and RDP were accidentally removed for about 10 minutes. Because the laptop uses Pi-hole for DNS, losing the DNS service made it look like the whole internet was down, not just the lab. Same single point of failure lesson as keeping Pi-hole off the home router.
 
+## Follow-ups
+
+- [ ] Homarr tiles updated to the `https://...twilight.goaround.lol` names
+- [ ] Uptime Kuma monitors moved to the HTTPS names, certificate expiry notifications on
+- [ ] Proxmox monitor no longer needs "ignore TLS errors"
+- [ ] Shared Docker network so NPM forwards by container name and the containers stop publishing their own ports
+
 ## Lessons
 
 - Let's Encrypt needs a real domain you control. Use a subdomain of one, not a made-up TLD.
@@ -168,4 +194,4 @@ The individual web ports (3001, 7575, 8081, 8082, 9443) were removed only after 
 
 ## Next
 
-Cloudflare Tunnel and Access: publish the Uptime Kuma status page at a public URL without opening any ports.
+[06: pve02 and a two node cluster](06-pve02-cluster.md)

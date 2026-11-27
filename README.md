@@ -1,5 +1,6 @@
 # KG Tech Lab
 
+![Lab diagram](docs/images/lab-diagram.png)
 Home lab for learning Windows Server, Active Directory, Linux, Docker and networking. Built on a two node Proxmox cluster behind a FortiGate 60E, with each step documented as I go.
 
 ## Quick links
@@ -21,8 +22,6 @@ Home lab for learning Windows Server, Active Directory, Linux, Docker and networ
 - **Web UIs:** `https://<service>.twilight.goaround.lol`, real Let's Encrypt wildcard cert
 
 ## Network
-
-![Lab diagram](docs/images/lab-diagram.png)
 
 ```
 Home router (192.168.1.0/24)

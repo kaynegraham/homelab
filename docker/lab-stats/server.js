@@ -111,8 +111,9 @@ async function getKuma() {
 
   const up = latest.filter(heartbeat => heartbeat.status === 1).length;
 
-  const uptimeValues = Object.values(data.uptimeList ?? {})
-    .map(value => Number(value['24']))
+  const uptimeValues = Object.entries(data.uptimeList ?? {})
+    .filter(([key, value]) => key.endsWith('_24') && value !== null && value !== '')
+    .map(([, value]) => Number(value))
     .filter(Number.isFinite);
 
   return {
@@ -121,7 +122,7 @@ async function getKuma() {
     total: latest.length,
     uptime24h: uptimeValues.length
       ? uptimeValues.reduce((sum, value) => sum + value, 0) / uptimeValues.length
-      : 0
+      : null
   };
 }
 
@@ -256,7 +257,7 @@ async function refreshStats() {
       ok: false,
       up: 0,
       total: 0,
-      uptime24h: 0
+      uptime24h: null
     }),
     safeSource('Pi-hole', getPiHole, {
       ok: false,

@@ -440,9 +440,8 @@ function update(d) {
     ratio('kuma', 't-kuma', allUp ? '' : 'warning', up, total);
     segments('kuma-seg', total, up);
 
-    // uptime24h arrives as a 0-1 fraction; 0 means Kuma sent nothing usable
-    const u = Number(kuma.uptime24h) || 0;
-    $('kuma-up').textContent = u ? pct1(u > 1 ? u : u * 100) : '--';
+    const u = kuma.uptime24h;
+    $('kuma-up').textContent = u == null ? '--' : pct1(clamp(u * 100));
   } else {
     ratioNA('kuma', 't-kuma', 'kuma-seg');
     $('kuma-up').textContent = '--';
@@ -529,7 +528,7 @@ const scenarios = [
   }),
   () => ({
     proxmox: { ok: false },
-    kuma: { ok: true, up: 4, total: 4, uptime24h: 0 },
+    kuma: { ok: true, up: 4, total: 4, uptime24h: null },
     pihole: { ok: false },
     docker: { ok: true, running: 7, total: 7, stopped: 0 }
   })

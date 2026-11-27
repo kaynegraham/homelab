@@ -63,6 +63,41 @@ Then in the Tailscale admin console:
 
 Tested from my phone on mobile data.
 
+## Second subnet router on pve02
+
+Added after pve02 joined the cluster ([06](06-pve02-cluster.md)). Same install, same route:
+
+```
+curl -fsSL https://tailscale.com/install.sh | sh
+echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-tailscale.conf
+sysctl -p /etc/sysctl.d/99-tailscale.conf
+tailscale up --advertise-routes=10.10.99.0/24 --accept-dns=false
+```
+
+Route approved in the admin console. With two machines advertising the same subnet, Tailscale uses one as the primary and keeps the other on standby. If pve01 goes down, remote access fails over to pve02.
+
+`--accept-dns=false` stops Tailscale overwriting the DNS servers set on the node.
+
+## Split DNS
+
+Tailscale admin console, DNS, custom nameservers restricted to a domain. Lab names resolve on any device running Tailscale, everything else uses normal DNS.
+
+| Nameserver | Restricted to | Why |
+|---|---|---|
+| `10.10.99.20` | `twilight.goaround.lol` | Pi-hole holds the wildcard pointing web UIs at NPM, see [05](05-reverse-proxy.md) |
+| `10.10.99.11` | `lab.twilight` | DC01 holds the AD zone |
+| `10.10.99.12` | `lab.twilight` | DC02, added once it's promoted |
+
+Testing on macOS:
+
+```
+dscacheutil -q host -a name dc01.lab.twilight
+```
+
+macOS `nslookup` ignores split DNS and gives misleading results. `dscacheutil` uses the same lookup path as apps.
+
+Windows App on the Mac only picked up the new names after it was fully quit (Cmd+Q) and reopened. Apps can hold on to a failed lookup from before the DNS change.
+
 ## Issues hit
 
 - **Phone couldn't load the UI via 10.10.99.2.** Using the Tailscale IP of pve01 worked straight away, because Tailscale runs on the host itself. The subnet route only matters for reaching VMs and containers.
@@ -83,4 +118,4 @@ Line 1 grants permission to use the TUN device (character device 10:200). Line 2
 ## Lessons
 
 - Running remote access on the hypervisor means it survives the lab breaking.
-- Mesh VPNs avoid port forwarding and CGNAT problems entirely.
+- Mesh VPNs avoid port forwarding and CGNAT problems entirely.ø

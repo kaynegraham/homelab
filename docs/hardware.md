@@ -28,6 +28,12 @@
 
 See [06](06-pve02-cluster.md). Takes the same RAM as pve01, so pve01's 2x4GB sticks move here after the upgrade.
 
+## Coming soon
+
+| Part | Role |
+|---|---|
+| Small NUC | QDevice for the cluster, third vote. Low power, runs 24/7. |
+
 ## Spare parts
 
 | Part | Notes |

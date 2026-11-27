@@ -2,6 +2,8 @@
 
 [Back to README](../README.md)
 
+![Network diagram](images/network-diagram.png)
+
 ## Subnets
 
 | Network | Subnet | Gateway |
@@ -18,8 +20,9 @@
 | FortiGate internal | 10.10.99.1 | Lab gateway |
 | pve01 | 10.10.99.2 | Proxmox host, cluster `twilight` |
 | pve02 | 10.10.99.3 | Proxmox host, cluster `twilight`, see [06](06-pve02-cluster.md) |
+| QDevice (NUC) | 10.10.99.4 | Coming soon, third cluster vote |
 | DC01 | 10.10.99.11 | Domain controller, DNS |
-| DC02 | 10.10.99.12 | Planned, on pve02 |
+| DC02 | 10.10.99.12 | Domain controller, DNS, on pve02. See [07](07-dc02.md) |
 | docker01 | 10.10.99.20 | Ubuntu Server, Docker host, see [04](04-docker-host.md). lab-stats on 8083. |
 | Clients | 10.10.99.100 to 150 | Reserved for DHCP from DC01 later |
 
@@ -92,7 +95,7 @@ Home internet is LTE behind CGNAT. The router's WAN IP is in 100.64.0.0/10, so n
 
 ## Remote access
 
-Tailscale runs on pve01 and advertises 10.10.99.0/24 as a subnet route. See [02](02-tailscale-remote-access.md).
+Tailscale runs on pve01 and pve02, both advertising 10.10.99.0/24 as a subnet route, with split DNS for lab names. See [02](02-tailscale-remote-access.md).
 
 | Target | Address |
 |---|---|

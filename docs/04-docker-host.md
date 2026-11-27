@@ -619,6 +619,7 @@ Real IP, `0.0.0.0` (blocked), then 10.10.99.20. "Server: UnKnown" in the output 
 | Clock showed nginx 403 | Git deleted and recreated the `html` folder, and the container was still bound to the old one | `docker compose up -d --force-recreate` |
 | Compose files disappeared from disk | A force push from the laptop, then syncing docker01 to it, removed the files Git was tracking | Found the old commit with `git log -g -- <file>` and restored with `git checkout <id> -- <files>` |
 | lab-stats header and footer clipped in Homarr | Panel was designed for a larger frame than Homarr's widget | Removed them and made the layout responsive |
+| Kuma showed every `*.twilight.goaround.lol` monitor down after a reboot, but the sites loaded fine in a browser | docker01's own DNS was `1.1.1.1`. Public DNS answers with the public `*.goaround.lol` wildcard instead of the lab one in Pi-hole, so Kuma checked the wrong place | Netplan nameservers set to `[10.10.99.20, 10.10.99.11]`, `sudo netplan apply`, then `docker restart uptime-kuma` so the container picked up the new DNS |
 | Homarr `.env` and data nearly committed | Files were already staged before `.gitignore` existed | `git reset --soft origin/main`, then `git restore --staged` on them. Never pushed. |
 
 ## Lessons

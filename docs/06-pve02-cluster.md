@@ -153,7 +153,9 @@ If that happens, run this on the surviving node to tell it to carry on alone:
 pvecm expected 1
 ```
 
-The proper fix is a QDevice: a small third vote running outside both nodes. It can run in the cloud over Tailscale because, unlike corosync, it doesn't need a low latency link.
+The proper fix is a QDevice: a small third vote running outside both nodes. It could run in the cloud over Tailscale because, unlike corosync, it doesn't need a low latency link.
+
+**Coming soon:** a cheap NUC on the lab network as the QDevice (`10.10.99.4`), running `corosync-qnetd`. With 3 votes, losing one node still leaves 2 of 3, so the cluster stays fully working.
 
 ### Why the nodes kept their names
 
@@ -199,7 +201,9 @@ A second WAN cable to the same router doesn't add real redundancy anyway. The ro
 
 ## Next
 
-- DC02 on pve02 (Server Core), promoted into `lab.twilight`
-- QDevice for a third vote
+[07: DC02](07-dc02.md). After that:
+
+- Tailscale on pve02 as a second subnet router (done, see [02](02-tailscale-remote-access.md))
+- QDevice on a NUC for a third vote (coming soon)
 - Shared or replicated storage, then HA for docker01
 - lab-stats panel switched to `/cluster/resources` so it shows both nodes
